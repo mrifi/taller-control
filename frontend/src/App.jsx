@@ -1,0 +1,25 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Layout from './components/Layout/Layout.jsx';
+import Dashboard from './pages/Dashboard.jsx';
+import Gastos from './pages/Gastos.jsx';
+import Ingresos from './pages/Ingresos.jsx';
+import Reportes from './pages/Reportes.jsx';
+import Talleres from './pages/Talleres.jsx';
+
+function App() {
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/ingresos" element={<Ingresos />} />
+        <Route path="/gastos" element={<Gastos />} />
+        <Route path="/talleres" element={<Talleres />} />
+        <Route path="/reportes" element={<Reportes />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Layout>
+  );
+}
+
+export default App;
