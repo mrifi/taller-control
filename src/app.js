@@ -17,27 +17,14 @@ const AppError = require('./utils/AppError');
 const app = express();
 app.set('trust proxy', 1);
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://taller-control.vercel.app'
-];
-
 const corsOptions = {
-  origin: function (origin, callback) {
-    console.log('CORS Origin:', origin);
-
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(null, false);
-  },
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://taller-control.vercel.app'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 204
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 const apiLimiter = rateLimit({
