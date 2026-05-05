@@ -40,6 +40,7 @@ const crearIngresoSchema = z.object({
   tallerId: requiredPositiveInt('tallerId'),
   estadoPago: z.enum(estadosPago, { error: 'Estado de pago no permitido' }).default('CONFIRMADO'),
   fechaPagoPrevista: optionalDate('fechaPagoPrevista'),
+  fechaPagoReal: optionalDate('fechaPagoReal'),
   cliente: z.preprocess(
     (value) => (value === '' || value === null ? undefined : value),
     z.string().trim().max(150, 'El cliente no puede superar 150 caracteres').optional()
@@ -66,6 +67,10 @@ const marcarComoCobradoParamsSchema = z.object({
   id: requiredPositiveInt('id')
 }).strict();
 
+const ingresoParamsSchema = z.object({
+  id: requiredPositiveInt('id')
+}).strict();
+
 const categoriaParamsSchema = z.object({
   id: requiredPositiveInt('id')
 }).strict();
@@ -81,6 +86,7 @@ module.exports = {
   categoriaIngresoSchema,
   categoriaParamsSchema,
   crearIngresoSchema,
+  ingresoParamsSchema,
   listarIngresosQuerySchema,
   marcarComoCobradoParamsSchema
 };

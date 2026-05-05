@@ -11,6 +11,8 @@ router.put('/categorias/:id', ingresosController.actualizarCategoria);
 router.patch('/categorias/:id/desactivar', ingresosController.desactivarCategoria);
 router.patch('/categorias/:id/activar', ingresosController.activarCategoria);
 router.post('/', ingresosController.crear);
+router.put('/:id', ingresosController.actualizar);
+router.delete('/:id', ingresosController.eliminar);
 router.patch('/:id/cobrado', ingresosController.marcarComoCobrado);
 
 module.exports = router;

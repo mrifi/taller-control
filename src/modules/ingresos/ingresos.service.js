@@ -3,6 +3,7 @@ const {
   categoriaIngresoSchema,
   categoriaParamsSchema,
   crearIngresoSchema,
+  ingresoParamsSchema,
   listarIngresosQuerySchema,
   marcarComoCobradoParamsSchema
 } = require('./ingresos.schema');
@@ -34,8 +35,33 @@ const crear = async (data) => {
     tallerId: validatedData.tallerId,
     estadoPago: validatedData.estadoPago,
     fechaPagoPrevista: validatedData.fechaPagoPrevista ?? null,
+    fechaPagoReal: validatedData.fechaPagoReal,
     cliente: validatedData.cliente ?? null
   });
+};
+
+const actualizar = async (params, data) => {
+  const validatedParams = ingresoParamsSchema.parse(params);
+  const validatedData = crearIngresoSchema.parse(data);
+
+  return ingresosRepository.actualizar(validatedParams.id, {
+    descripcion: validatedData.descripcion,
+    fecha: validatedData.fecha,
+    monto: validatedData.monto,
+    cantidad: validatedData.cantidad,
+    metodoPago: validatedData.metodoPago,
+    categoriaId: validatedData.categoriaId,
+    tallerId: validatedData.tallerId,
+    estadoPago: validatedData.estadoPago,
+    fechaPagoPrevista: validatedData.fechaPagoPrevista ?? null,
+    cliente: validatedData.cliente ?? null
+  });
+};
+
+const eliminar = async (params) => {
+  const validatedParams = ingresoParamsSchema.parse(params);
+
+  return ingresosRepository.eliminar(validatedParams.id);
 };
 
 const marcarComoCobrado = async (params) => {
@@ -81,9 +107,11 @@ module.exports = {
   listar,
   crear,
   activarCategoria,
+  actualizar,
   actualizarCategoria,
   crearCategoria,
   desactivarCategoria,
+  eliminar,
   listarCategorias,
   listarTodasCategorias,
   marcarComoCobrado

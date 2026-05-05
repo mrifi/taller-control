@@ -18,6 +18,24 @@ const crear = async (req, res, next) => {
   }
 };
 
+const actualizar = async (req, res, next) => {
+  try {
+    const ingreso = await ingresosService.actualizar(req.params, req.body);
+    res.json(ingreso);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const eliminar = async (req, res, next) => {
+  try {
+    const result = await ingresosService.eliminar(req.params);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const listarCategorias = async (req, res, next) => {
   try {
     const categorias = await ingresosService.listarCategorias();
@@ -85,9 +103,11 @@ module.exports = {
   listar,
   crear,
   activarCategoria,
+  actualizar,
   actualizarCategoria,
   crearCategoria,
   desactivarCategoria,
+  eliminar,
   listarCategorias,
   listarTodasCategorias,
   marcarComoCobrado

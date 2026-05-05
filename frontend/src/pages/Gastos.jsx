@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Plus, RotateCcw, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { Edit3, Plus, RotateCcw, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import CategoryManagerModal from '../components/Management/CategoryManagerModal.jsx';
 import {
   activarTipoGasto,
   createGasto,
   createTipoGasto,
+  deleteGasto,
   desactivarTipoGasto,
   getGastos,
   getTiposGasto,
   getTodosTiposGasto,
+  updateGasto,
   updateTipoGasto
 } from '../services/gastosService.js';
 import { getTalleres } from '../services/talleresService.js';
@@ -40,6 +42,7 @@ function Gastos() {
   const [talleres, setTalleres] = useState([]);
   const [tiposGasto, setTiposGasto] = useState([]);
   const [form, setForm] = useState(initialForm);
+  const [editingGasto, setEditingGasto] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showTypeManager, setShowTypeManager] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -130,11 +133,28 @@ function Gastos() {
   };
 
   const handleOpenForm = () => {
+    setEditingGasto(null);
     setForm((current) => ({
       ...initialForm,
       tallerId: filters.tallerId || current.tallerId || '',
       tipoGastoId: filters.tipoGastoId || current.tipoGastoId || ''
     }));
+    setMessage('');
+    setError('');
+    setShowForm(true);
+  };
+
+  const handleOpenEdit = (gasto) => {
+    setEditingGasto(gasto);
+    setForm({
+      descripcion: gasto.Descripcion || '',
+      fecha: toInputDate(gasto.Fecha),
+      monto: gasto.Monto ?? '',
+      cantidad: gasto.Cantidad ?? '1',
+      metodoPago: gasto.TipoPago || 'Efectivo',
+      tipoGastoId: String(gasto.IDTipoGasto || ''),
+      tallerId: String(gasto.IDTaller || '')
+    });
     setMessage('');
     setError('');
     setShowForm(true);
@@ -147,15 +167,39 @@ function Gastos() {
     setMessage('');
 
     try {
-      await createGasto(buildPayload(form));
-      setMessage('Gasto creado correctamente.');
+      if (editingGasto) {
+        await updateGasto(getGastoId(editingGasto), buildPayload(form));
+        setMessage('Gasto actualizado correctamente.');
+      } else {
+        await createGasto(buildPayload(form));
+        setMessage('Gasto creado correctamente.');
+      }
       setShowForm(false);
+      setEditingGasto(null);
       await loadGastos(filters);
     } catch (requestError) {
-      logError('crear gasto', requestError);
-      setError(getApiMessage(requestError, 'No se pudo crear el gasto.'));
+      logError('guardar gasto', requestError);
+      setError(getApiMessage(requestError, 'No se pudo guardar el gasto.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm('¿Seguro que quieres eliminar este gasto? Esta acción no se puede deshacer.');
+
+    if (!confirmed) return;
+
+    setError('');
+    setMessage('');
+
+    try {
+      await deleteGasto(id);
+      setMessage('Gasto eliminado correctamente.');
+      await loadGastos(filters);
+    } catch (requestError) {
+      logError('eliminar gasto', requestError);
+      setError(getApiMessage(requestError, 'No se pudo eliminar el gasto.'));
     }
   };
 
@@ -248,13 +292,14 @@ function Gastos() {
                 <th>Metodo</th>
                 <th>Tipo de gasto</th>
                 <th>Taller</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" className="empty-row">Cargando gastos...</td></tr>
+                <tr><td colSpan="8" className="empty-row">Cargando gastos...</td></tr>
               ) : gastos.length === 0 ? (
-                <tr><td colSpan="7" className="empty-row">No hay gastos para los filtros seleccionados.</td></tr>
+                <tr><td colSpan="8" className="empty-row">No hay gastos para los filtros seleccionados.</td></tr>
               ) : gastos.map((gasto) => (
                 <tr key={getGastoId(gasto)}>
                   <td>{formatDate(gasto.Fecha)}</td>
@@ -264,6 +309,18 @@ function Gastos() {
                   <td>{gasto.TipoPago || '-'}</td>
                   <td>{gasto.TipoGasto || '-'}</td>
                   <td>{gasto.Taller || '-'}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button className="small-action-button neutral-action" type="button" onClick={() => handleOpenEdit(gasto)}>
+                        <Edit3 size={14} />
+                        <span>Editar</span>
+                      </button>
+                      <button className="small-action-button danger-action" type="button" onClick={() => handleDelete(getGastoId(gasto))}>
+                        <Trash2 size={14} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -285,7 +342,7 @@ function Gastos() {
             <div className="modal-heading">
               <div>
                 <p className="eyebrow">Nuevo movimiento</p>
-                <h2>Crear gasto</h2>
+                <h2>{editingGasto ? 'Editar gasto' : 'Crear gasto'}</h2>
               </div>
               <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setShowForm(false)}>
                 <X size={18} />
@@ -344,7 +401,7 @@ function Gastos() {
 
             <div className="modal-actions">
               <button className="ghost-button" type="button" onClick={() => setShowForm(false)}>Cancelar</button>
-              <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Crear gasto'}</button>
+              <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : editingGasto ? 'Guardar cambios' : 'Crear gasto'}</button>
             </div>
           </form>
         </div>
@@ -405,6 +462,12 @@ function formatDate(value) {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '-' : new Intl.DateTimeFormat('es-ES').format(date);
+}
+
+function toInputDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
 function formatCurrency(value) {

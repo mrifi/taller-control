@@ -72,6 +72,7 @@ const crear = async ({
   tallerId,
   estadoPago,
   fechaPagoPrevista,
+  fechaPagoReal,
   cliente
 }) => {
   const pool = await getPool();
@@ -85,7 +86,7 @@ const crear = async ({
     IDTaller: tallerId,
     EstadoPago: estadoPago,
     FechaPagoPrevista: fechaPagoPrevista,
-    FechaPagoReal: estadoPago === 'CONFIRMADO' ? new Date() : null,
+    FechaPagoReal: fechaPagoReal ?? (estadoPago === 'CONFIRMADO' ? new Date() : null),
     Cliente: cliente
   };
 
@@ -134,6 +135,93 @@ const crear = async ({
   logRepositoryCall('INSERT dbo.Ingreso', params, result);
 
   return result.recordset[0] || { message: 'Ingreso creado correctamente' };
+};
+
+const actualizar = async (id, {
+  descripcion,
+  fecha,
+  monto,
+  cantidad,
+  metodoPago,
+  categoriaId,
+  tallerId,
+  estadoPago,
+  fechaPagoPrevista,
+  cliente
+}) => {
+  const pool = await getPool();
+  const params = {
+    IDIngreso: id,
+    Descripcion: descripcion,
+    Fecha: fecha,
+    Monto: monto,
+    Cantidad: cantidad,
+    TipoPago: metodoPago,
+    IDTipoIngreso: categoriaId,
+    IDTaller: tallerId,
+    EstadoPago: estadoPago,
+    FechaPagoPrevista: fechaPagoPrevista,
+    FechaPagoReal: estadoPago === 'CONFIRMADO' ? new Date() : null,
+    Cliente: cliente
+  };
+
+  const result = await pool.request()
+    .input('IDIngreso', sql.Int, params.IDIngreso)
+    .input('Descripcion', sql.VarChar(255), params.Descripcion)
+    .input('Fecha', sql.Date, params.Fecha)
+    .input('Monto', sql.Decimal(18, 2), params.Monto)
+    .input('Cantidad', sql.Int, params.Cantidad)
+    .input('TipoPago', sql.VarChar(50), params.TipoPago)
+    .input('IDTipoIngreso', sql.Int, params.IDTipoIngreso)
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .input('EstadoPago', sql.VarChar(20), params.EstadoPago)
+    .input('FechaPagoPrevista', sql.Date, params.FechaPagoPrevista)
+    .input('FechaPagoReal', sql.Date, params.FechaPagoReal)
+    .input('Cliente', sql.VarChar(150), params.Cliente)
+    .query(`
+      UPDATE dbo.Ingreso
+      SET Descripcion = @Descripcion,
+          Fecha = @Fecha,
+          Monto = @Monto,
+          Cantidad = @Cantidad,
+          TipoPago = @TipoPago,
+          IDTipoIngreso = @IDTipoIngreso,
+          IDTaller = @IDTaller,
+          EstadoPago = @EstadoPago,
+          FechaPagoPrevista = @FechaPagoPrevista,
+          FechaPagoReal = @FechaPagoReal,
+          Cliente = @Cliente
+      OUTPUT INSERTED.*
+      WHERE IDIngreso = @IDIngreso
+    `);
+
+  logRepositoryCall('UPDATE dbo.Ingreso', params, result);
+
+  if (!result.recordset?.[0]) {
+    throw new AppError('Ingreso no encontrado', 404);
+  }
+
+  return result.recordset[0];
+};
+
+const eliminar = async (id) => {
+  const pool = await getPool();
+  const params = { IDIngreso: id };
+  const result = await pool.request()
+    .input('IDIngreso', sql.Int, params.IDIngreso)
+    .query(`
+      DELETE FROM dbo.Ingreso
+      OUTPUT DELETED.IDIngreso
+      WHERE IDIngreso = @IDIngreso
+    `);
+
+  logRepositoryCall('DELETE dbo.Ingreso', params, result);
+
+  if (!result.recordset?.[0]) {
+    throw new AppError('Ingreso no encontrado', 404);
+  }
+
+  return { message: 'Ingreso eliminado correctamente', id: result.recordset[0].IDIngreso };
 };
 
 const marcarComoCobrado = async (id) => {
@@ -287,10 +375,12 @@ module.exports = {
   listar,
   crear,
   activarCategoria: (id) => cambiarEstadoCategoria(id, true),
+  actualizar,
   actualizarCategoria,
   cambiarEstadoCategoria,
   crearCategoria,
   desactivarCategoria: (id) => cambiarEstadoCategoria(id, false),
+  eliminar,
   listarCategorias,
   listarTodasCategorias,
   marcarComoCobrado

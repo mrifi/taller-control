@@ -18,6 +18,24 @@ const crear = async (req, res, next) => {
   }
 };
 
+const actualizar = async (req, res, next) => {
+  try {
+    const gasto = await gastosService.actualizar(req.params, req.body);
+    res.json(gasto);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const eliminar = async (req, res, next) => {
+  try {
+    const result = await gastosService.eliminar(req.params);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 const listarTipos = async (req, res, next) => {
   try {
     const tipos = await gastosService.listarTipos();
@@ -76,9 +94,11 @@ module.exports = {
   listar,
   crear,
   activarTipo,
+  actualizar,
   actualizarTipo,
   crearTipo,
   desactivarTipo,
+  eliminar,
   listarTipos,
   listarTodosTipos
 };

@@ -619,6 +619,12 @@ td {
   background: #ffffff;
 }
 
+.danger-action {
+  border-color: #fecaca;
+  color: #991b1b;
+  background: #fff1f2;
+}
+
 .table-actions {
   display: flex;
   flex-wrap: wrap;

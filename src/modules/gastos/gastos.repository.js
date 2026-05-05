@@ -105,6 +105,70 @@ const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGast
   return result.recordset[0] || { message: 'Gasto creado correctamente' };
 };
 
+const actualizar = async (id, { descripcion, fecha, monto, cantidad, metodoPago, tipoGastoId, tallerId }) => {
+  const pool = await getPool();
+  const params = {
+    IDGasto: id,
+    Descripcion: descripcion,
+    Fecha: fecha,
+    Monto: monto,
+    Cantidad: cantidad,
+    TipoPago: metodoPago,
+    IDTipoGasto: tipoGastoId,
+    IDTaller: tallerId
+  };
+
+  const result = await pool.request()
+    .input('IDGasto', sql.Int, params.IDGasto)
+    .input('Descripcion', sql.VarChar(255), params.Descripcion)
+    .input('Fecha', sql.Date, params.Fecha)
+    .input('Monto', sql.Decimal(18, 2), params.Monto)
+    .input('Cantidad', sql.Int, params.Cantidad)
+    .input('TipoPago', sql.VarChar(50), params.TipoPago)
+    .input('IDTipoGasto', sql.Int, params.IDTipoGasto)
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .query(`
+      UPDATE dbo.Gasto
+      SET Descripcion = @Descripcion,
+          Fecha = @Fecha,
+          Monto = @Monto,
+          Cantidad = @Cantidad,
+          TipoPago = @TipoPago,
+          IDTipoGasto = @IDTipoGasto,
+          IDTaller = @IDTaller
+      OUTPUT INSERTED.*
+      WHERE IDGasto = @IDGasto
+    `);
+
+  logRepositoryCall('UPDATE dbo.Gasto', params, result);
+
+  if (!result.recordset?.[0]) {
+    throw new AppError('Gasto no encontrado', 404);
+  }
+
+  return result.recordset[0];
+};
+
+const eliminar = async (id) => {
+  const pool = await getPool();
+  const params = { IDGasto: id };
+  const result = await pool.request()
+    .input('IDGasto', sql.Int, params.IDGasto)
+    .query(`
+      DELETE FROM dbo.Gasto
+      OUTPUT DELETED.IDGasto
+      WHERE IDGasto = @IDGasto
+    `);
+
+  logRepositoryCall('DELETE dbo.Gasto', params, result);
+
+  if (!result.recordset?.[0]) {
+    throw new AppError('Gasto no encontrado', 404);
+  }
+
+  return { message: 'Gasto eliminado correctamente', id: result.recordset[0].IDGasto };
+};
+
 const listarTipos = async () => {
   const pool = await getPool();
   const result = await pool.request()
@@ -241,9 +305,11 @@ const logRepositoryCall = (operationName, params, result) => {
 module.exports = {
   listar,
   crear,
+  actualizar,
   actualizarTipo,
   cambiarEstadoTipo,
   crearTipo,
+  eliminar,
   listarTipos,
   listarTodosTipos
 };

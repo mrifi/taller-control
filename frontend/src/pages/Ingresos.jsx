@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Plus, RotateCcw, Settings, SlidersHorizontal, X } from 'lucide-react';
+import { CheckCircle2, Edit3, Plus, RotateCcw, Settings, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import CategoryManagerModal from '../components/Management/CategoryManagerModal.jsx';
 import {
   activarCategoriaIngreso,
   createCategoriaIngreso,
   createIngreso,
+  deleteIngreso,
   desactivarCategoriaIngreso,
   getCategoriasIngreso,
   getIngresos,
   getTodasCategoriasIngreso,
   marcarComoCobrado,
+  updateIngreso,
   updateCategoriaIngreso
 } from '../services/ingresosService.js';
 import { getTalleres } from '../services/talleresService.js';
@@ -45,6 +47,7 @@ function Ingresos() {
   const [talleres, setTalleres] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [form, setForm] = useState(initialForm);
+  const [editingIngreso, setEditingIngreso] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -134,10 +137,30 @@ function Ingresos() {
   };
 
   const handleOpenForm = () => {
+    setEditingIngreso(null);
     setForm((current) => ({
       ...initialForm,
       tallerId: filters.tallerId || current.tallerId || ''
     }));
+    setMessage('');
+    setError('');
+    setShowForm(true);
+  };
+
+  const handleOpenEdit = (ingreso) => {
+    setEditingIngreso(ingreso);
+    setForm({
+      descripcion: ingreso.Descripcion || '',
+      fecha: toInputDate(ingreso.Fecha),
+      monto: ingreso.Monto ?? '',
+      cantidad: ingreso.Cantidad ?? '',
+      metodoPago: ingreso.TipoPago || 'Efectivo',
+      categoriaId: String(ingreso.IDTipoIngreso || ''),
+      tallerId: String(ingreso.IDTaller || ''),
+      estadoPago: ingreso.EstadoPago || 'CONFIRMADO',
+      fechaPagoPrevista: toInputDate(ingreso.FechaPagoPrevista),
+      cliente: ingreso.Cliente || ''
+    });
     setMessage('');
     setError('');
     setShowForm(true);
@@ -150,13 +173,19 @@ function Ingresos() {
     setMessage('');
 
     try {
-      await createIngreso(buildPayload(form));
-      setMessage('Ingreso creado correctamente.');
+      if (editingIngreso) {
+        await updateIngreso(getIngresoId(editingIngreso), buildPayload(form));
+        setMessage('Ingreso actualizado correctamente.');
+      } else {
+        await createIngreso(buildPayload(form));
+        setMessage('Ingreso creado correctamente.');
+      }
       setShowForm(false);
+      setEditingIngreso(null);
       await loadIngresos(filters);
     } catch (requestError) {
-      logError('crear ingreso', requestError);
-      setError(getApiMessage(requestError, 'No se pudo crear el ingreso.'));
+      logError('guardar ingreso', requestError);
+      setError(getApiMessage(requestError, 'No se pudo guardar el ingreso.'));
     } finally {
       setSaving(false);
     }
@@ -173,6 +202,24 @@ function Ingresos() {
     } catch (requestError) {
       logError('marcar como cobrado', requestError);
       setError(getApiMessage(requestError, 'No se pudo marcar el ingreso como cobrado.'));
+    }
+  };
+
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm('¿Seguro que quieres eliminar este ingreso? Esta acción no se puede deshacer.');
+
+    if (!confirmed) return;
+
+    setError('');
+    setMessage('');
+
+    try {
+      await deleteIngreso(id);
+      setMessage('Ingreso eliminado correctamente.');
+      await loadIngresos(filters);
+    } catch (requestError) {
+      logError('eliminar ingreso', requestError);
+      setError(getApiMessage(requestError, 'No se pudo eliminar el ingreso.'));
     }
   };
 
@@ -282,12 +329,22 @@ function Ingresos() {
                   <td>{formatDate(ingreso.FechaPagoPrevista)}</td>
                   <td>{formatDate(ingreso.FechaPagoReal)}</td>
                   <td>
-                    {ingreso.EstadoPago === 'PENDIENTE' ? (
-                      <button className="small-action-button" type="button" onClick={() => handleMarkAsPaid(getIngresoId(ingreso))}>
-                        <CheckCircle2 size={15} />
-                        <span>Marcar como cobrado</span>
+                    <div className="table-actions">
+                      {ingreso.EstadoPago === 'PENDIENTE' ? (
+                        <button className="small-action-button" type="button" onClick={() => handleMarkAsPaid(getIngresoId(ingreso))}>
+                          <CheckCircle2 size={15} />
+                          <span>Marcar como cobrado</span>
+                        </button>
+                      ) : null}
+                      <button className="small-action-button neutral-action" type="button" onClick={() => handleOpenEdit(ingreso)}>
+                        <Edit3 size={14} />
+                        <span>Editar</span>
                       </button>
-                    ) : '-'}
+                      <button className="small-action-button danger-action" type="button" onClick={() => handleDelete(getIngresoId(ingreso))}>
+                        <Trash2 size={14} />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -310,7 +367,7 @@ function Ingresos() {
             <div className="modal-heading">
               <div>
                 <p className="eyebrow">Nuevo movimiento</p>
-                <h2>Crear ingreso</h2>
+                <h2>{editingIngreso ? 'Editar ingreso' : 'Crear ingreso'}</h2>
               </div>
               <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setShowForm(false)}>
                 <X size={18} />
@@ -388,7 +445,7 @@ function Ingresos() {
 
             <div className="modal-actions">
               <button className="ghost-button" type="button" onClick={() => setShowForm(false)}>Cancelar</button>
-              <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Crear ingreso'}</button>
+              <button className="primary-button" type="submit" disabled={saving}>{saving ? 'Guardando...' : editingIngreso ? 'Guardar cambios' : 'Crear ingreso'}</button>
             </div>
           </form>
         </div>
@@ -456,6 +513,12 @@ function formatDate(value) {
   if (!value) return '-';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '-' : new Intl.DateTimeFormat('es-ES').format(date);
+}
+
+function toInputDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10);
 }
 
 function formatCurrency(value) {

@@ -40,6 +40,16 @@ export const createIngreso = async (payload) => {
   return data;
 };
 
+export const updateIngreso = async (id, payload) => {
+  const { data } = await api.put(`/ingresos/${id}`, payload);
+  return data;
+};
+
+export const deleteIngreso = async (id) => {
+  const { data } = await api.delete(`/ingresos/${id}`);
+  return data;
+};
+
 export const marcarComoCobrado = async (id) => {
   const { data } = await api.patch(`/ingresos/${id}/cobrado`);
   return data;

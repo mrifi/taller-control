@@ -39,3 +39,13 @@ export const createGasto = async (payload) => {
   const { data } = await api.post('/gastos', payload);
   return data;
 };
+
+export const updateGasto = async (id, payload) => {
+  const { data } = await api.put(`/gastos/${id}`, payload);
+  return data;
+};
+
+export const deleteGasto = async (id) => {
+  const { data } = await api.delete(`/gastos/${id}`);
+  return data;
+};

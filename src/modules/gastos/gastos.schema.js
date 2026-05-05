@@ -41,6 +41,10 @@ const tipoGastoParamsSchema = z.object({
   id: requiredPositiveInt('id')
 }).strict();
 
+const gastoParamsSchema = z.object({
+  id: requiredPositiveInt('id')
+}).strict();
+
 const tipoGastoSchema = z.object({
   denominacion: z.string({ error: 'La denominacion es obligatoria' })
     .trim()
@@ -50,6 +54,7 @@ const tipoGastoSchema = z.object({
 
 module.exports = {
   crearGastoSchema,
+  gastoParamsSchema,
   listarGastosQuerySchema,
   tipoGastoParamsSchema,
   tipoGastoSchema
