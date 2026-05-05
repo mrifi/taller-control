@@ -17,7 +17,8 @@ const AppError = require('./utils/AppError');
 const app = express();
 app.set('trust proxy', 1);
 
-const allowedOrigins = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'))
+const defaultCorsOrigins = 'http://localhost:5173,http://localhost:5174,http://localhost:5175';
+const allowedOrigins = (process.env.CORS_ORIGIN || defaultCorsOrigins)
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -38,8 +39,9 @@ app.use(cors({
       return callback(null, true);
     }
 
-    return callback(new Error('Origen no permitido por CORS'));
-  }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
 }));
 
 app.use(pinoHttp({ logger }));
