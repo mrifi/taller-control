@@ -15,6 +15,8 @@ const logger = require('./config/logger');
 const AppError = require('./utils/AppError');
 
 const app = express();
+app.set('trust proxy', 1);
+
 const allowedOrigins = (process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'))
   .split(',')
   .map((origin) => origin.trim())

@@ -1,14 +1,6 @@
 const sql = require('mssql');
 require('dotenv').config();
 
-const parseBoolean = (value, defaultValue) => {
-  if (value === undefined) {
-    return defaultValue;
-  }
-
-  return String(value).toLowerCase() === 'true';
-};
-
 const dbConfig = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -16,8 +8,8 @@ const dbConfig = {
   port: Number(process.env.DB_PORT || 1433),
   database: process.env.DB_DATABASE,
   options: {
-    encrypt: parseBoolean(process.env.DB_ENCRYPT, true),
-    trustServerCertificate: parseBoolean(process.env.DB_TRUST_SERVER_CERTIFICATE, false)
+    encrypt: true,
+    trustServerCertificate: false
   },
   pool: {
     max: 10,
@@ -30,13 +22,13 @@ let poolPromise;
 
 const getPool = async () => {
   if (!poolPromise) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log({
-        sqlServer: dbConfig.server,
-        database: dbConfig.database,
-        user: dbConfig.user
-      });
-    }
+    console.log({
+      server: dbConfig.server,
+      database: dbConfig.database,
+      port: dbConfig.port,
+      encrypt: dbConfig.options.encrypt,
+      trustServerCertificate: dbConfig.options.trustServerCertificate
+    });
 
     poolPromise = sql.connect(dbConfig).catch((error) => {
       if (process.env.NODE_ENV !== 'production') {
