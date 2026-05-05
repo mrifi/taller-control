@@ -5,6 +5,8 @@ const cors = require('cors');
 const pinoHttp = require('pino-http');
 const rateLimit = require('express-rate-limit');
 
+const authRoutes = require('./modules/auth/auth.routes');
+const { verifyToken } = require('./modules/auth/auth.middleware');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const ingresosRoutes = require('./modules/ingresos/ingresos.routes');
 const gastosRoutes = require('./modules/gastos/gastos.routes');
@@ -56,11 +58,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/ingresos', ingresosRoutes);
-app.use('/api/gastos', gastosRoutes);
-app.use('/api/reportes', reportesRoutes);
-app.use('/api/talleres', talleresRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', verifyToken, dashboardRoutes);
+app.use('/api/ingresos', verifyToken, ingresosRoutes);
+app.use('/api/gastos', verifyToken, gastosRoutes);
+app.use('/api/reportes', verifyToken, reportesRoutes);
+app.use('/api/talleres', verifyToken, talleresRoutes);
 
 app.use((req, res) => {
   throw new AppError('Ruta no encontrada', 404);
