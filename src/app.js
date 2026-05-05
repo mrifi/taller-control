@@ -17,22 +17,17 @@ const AppError = require('./utils/AppError');
 const app = express();
 app.set('trust proxy', 1);
 
-const defaultCorsOrigins = [
+const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://taller-control.vercel.app'
 ];
 
-const envCorsOrigins = (process.env.CORS_ORIGIN || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const allowedOrigins = [...new Set([...defaultCorsOrigins, ...envCorsOrigins])];
-
 const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
@@ -40,7 +35,8 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: false,
+  optionsSuccessStatus: 204
 };
 
 const apiLimiter = rateLimit({
@@ -52,6 +48,11 @@ const apiLimiter = rateLimit({
     success: false,
     message: 'Demasiadas solicitudes. Inténtalo de nuevo más tarde.'
   }
+});
+
+app.use((req, res, next) => {
+  console.log('Origin:', req.headers.origin);
+  next();
 });
 
 app.use(cors(corsOptions));
