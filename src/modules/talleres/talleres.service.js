@@ -1,28 +1,28 @@
 const talleresRepository = require('./talleres.repository');
 const { tallerParamsSchema, tallerSchema } = require('./talleres.schema');
 
-const listar = async () => {
-  return talleresRepository.listar();
+const listar = async (empresaId) => {
+  return talleresRepository.listar(empresaId);
 };
 
-const obtenerComparativa = async () => {
-  return talleresRepository.obtenerComparativa();
+const obtenerComparativa = async (empresaId) => {
+  return talleresRepository.obtenerComparativa(empresaId);
 };
 
-const crear = async (data) => {
+const crear = async (empresaId, data) => {
   const validatedData = tallerSchema.parse(data);
 
-  return talleresRepository.crear({
+  return talleresRepository.crear(empresaId, {
     Nombre: validatedData.Nombre,
     Codigo: validatedData.Codigo ?? null
   });
 };
 
-const actualizar = async (params, data) => {
+const actualizar = async (empresaId, params, data) => {
   const validatedParams = tallerParamsSchema.parse(params);
   const validatedData = tallerSchema.parse(data);
 
-  return talleresRepository.actualizar(validatedParams.id, {
+  return talleresRepository.actualizar(empresaId, validatedParams.id, {
     Nombre: validatedData.Nombre,
     Codigo: validatedData.Codigo ?? null
   });

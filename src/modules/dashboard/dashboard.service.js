@@ -1,10 +1,11 @@
 const dashboardRepository = require('./dashboard.repository');
 const { dashboardQuerySchema } = require('./dashboard.schema');
 
-const getResumen = async (filters) => {
+const getResumen = async (empresaId, filters) => {
   const validatedFilters = dashboardQuerySchema.parse(filters);
 
   const resumen = await dashboardRepository.getResumen({
+    empresaId,
     tallerId: validatedFilters.tallerId ?? null,
     fechaInicio: validatedFilters.fechaInicio ?? null,
     fechaFin: validatedFilters.fechaFin ?? null

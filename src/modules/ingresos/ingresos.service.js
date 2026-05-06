@@ -8,10 +8,11 @@ const {
   marcarComoCobradoParamsSchema
 } = require('./ingresos.schema');
 
-const listar = async (filters) => {
+const listar = async (empresaId, filters) => {
   const validatedFilters = listarIngresosQuerySchema.parse(filters);
 
   return ingresosRepository.listar({
+    empresaId,
     tallerId: validatedFilters.tallerId ?? null,
     fechaInicio: validatedFilters.fechaInicio ?? null,
     fechaFin: validatedFilters.fechaFin ?? null,
@@ -22,10 +23,11 @@ const listar = async (filters) => {
   });
 };
 
-const crear = async (data) => {
+const crear = async (empresaId, data) => {
   const validatedData = crearIngresoSchema.parse(data);
 
   return ingresosRepository.crear({
+    empresaId,
     descripcion: validatedData.descripcion,
     fecha: validatedData.fecha,
     monto: validatedData.monto,
@@ -40,11 +42,11 @@ const crear = async (data) => {
   });
 };
 
-const actualizar = async (params, data) => {
+const actualizar = async (empresaId, params, data) => {
   const validatedParams = ingresoParamsSchema.parse(params);
   const validatedData = crearIngresoSchema.parse(data);
 
-  return ingresosRepository.actualizar(validatedParams.id, {
+  return ingresosRepository.actualizar(empresaId, validatedParams.id, {
     descripcion: validatedData.descripcion,
     fecha: validatedData.fecha,
     monto: validatedData.monto,
@@ -58,49 +60,49 @@ const actualizar = async (params, data) => {
   });
 };
 
-const eliminar = async (params) => {
+const eliminar = async (empresaId, params) => {
   const validatedParams = ingresoParamsSchema.parse(params);
 
-  return ingresosRepository.eliminar(validatedParams.id);
+  return ingresosRepository.eliminar(empresaId, validatedParams.id);
 };
 
-const marcarComoCobrado = async (params) => {
+const marcarComoCobrado = async (empresaId, params) => {
   const validatedParams = marcarComoCobradoParamsSchema.parse(params);
 
-  return ingresosRepository.marcarComoCobrado(validatedParams.id);
+  return ingresosRepository.marcarComoCobrado(empresaId, validatedParams.id);
 };
 
-const listarCategorias = async () => {
-  return ingresosRepository.listarCategorias();
+const listarCategorias = async (empresaId) => {
+  return ingresosRepository.listarCategorias(empresaId);
 };
 
-const listarTodasCategorias = async () => {
-  return ingresosRepository.listarTodasCategorias();
+const listarTodasCategorias = async (empresaId) => {
+  return ingresosRepository.listarTodasCategorias(empresaId);
 };
 
-const crearCategoria = async (data) => {
+const crearCategoria = async (empresaId, data) => {
   const validatedData = categoriaIngresoSchema.parse(data);
 
-  return ingresosRepository.crearCategoria(validatedData.denominacion);
+  return ingresosRepository.crearCategoria(empresaId, validatedData.denominacion);
 };
 
-const actualizarCategoria = async (params, data) => {
+const actualizarCategoria = async (empresaId, params, data) => {
   const validatedParams = categoriaParamsSchema.parse(params);
   const validatedData = categoriaIngresoSchema.parse(data);
 
-  return ingresosRepository.actualizarCategoria(validatedParams.id, validatedData.denominacion);
+  return ingresosRepository.actualizarCategoria(empresaId, validatedParams.id, validatedData.denominacion);
 };
 
-const desactivarCategoria = async (params) => {
+const desactivarCategoria = async (empresaId, params) => {
   const validatedParams = categoriaParamsSchema.parse(params);
 
-  return ingresosRepository.cambiarEstadoCategoria(validatedParams.id, false);
+  return ingresosRepository.cambiarEstadoCategoria(empresaId, validatedParams.id, false);
 };
 
-const activarCategoria = async (params) => {
+const activarCategoria = async (empresaId, params) => {
   const validatedParams = categoriaParamsSchema.parse(params);
 
-  return ingresosRepository.cambiarEstadoCategoria(validatedParams.id, true);
+  return ingresosRepository.cambiarEstadoCategoria(empresaId, validatedParams.id, true);
 };
 
 module.exports = {

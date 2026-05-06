@@ -1,9 +1,10 @@
 const { getPool, sql } = require('../../config/db');
 const AppError = require('../../utils/AppError');
 
-const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, tipoGastoId, limit, offset }) => {
+const listar = async ({ empresaId, tallerId, fechaInicio, fechaFin, metodoPago, tipoGastoId, limit, offset }) => {
   const pool = await getPool();
   const params = {
+    IDEmpresa: empresaId,
     IDTaller: tallerId ?? null,
     FechaInicio: fechaInicio ?? null,
     FechaFin: fechaFin ?? null,
@@ -14,6 +15,7 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, tipoGastoId
   };
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('IDTaller', sql.Int, params.IDTaller)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
@@ -36,7 +38,8 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, tipoGastoId
       FROM dbo.Gasto g
       LEFT JOIN dbo.TipoGasto tg ON tg.IDTipoGasto = g.IDTipoGasto
       LEFT JOIN dbo.Taller t ON t.IDTaller = g.IDTaller
-      WHERE (@IDTaller IS NULL OR g.IDTaller = @IDTaller)
+      WHERE g.IDEmpresa = @IDEmpresa
+        AND (@IDTaller IS NULL OR g.IDTaller = @IDTaller)
         AND (@FechaInicio IS NULL OR g.Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR g.Fecha <= @FechaFin)
         AND (@TipoPago IS NULL OR g.TipoPago = @TipoPago)
@@ -58,9 +61,10 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, tipoGastoId
   };
 };
 
-const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGastoId, tallerId }) => {
+const crear = async ({ empresaId, descripcion, fecha, monto, cantidad, metodoPago, tipoGastoId, tallerId }) => {
   const pool = await getPool();
   const params = {
+    IDEmpresa: empresaId,
     Descripcion: descripcion,
     Fecha: fecha,
     Monto: monto,
@@ -70,7 +74,10 @@ const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGast
     IDTaller: tallerId
   };
 
+  await ensureGastoReferencesBelongToEmpresa(pool, params);
+
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('Descripcion', sql.VarChar(255), params.Descripcion)
     .input('Fecha', sql.Date, params.Fecha)
     .input('Monto', sql.Decimal(18, 2), params.Monto)
@@ -86,7 +93,8 @@ const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGast
         Cantidad,
         TipoPago,
         IDTipoGasto,
-        IDTaller
+        IDTaller,
+        IDEmpresa
       )
       OUTPUT INSERTED.*
       VALUES (
@@ -96,7 +104,8 @@ const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGast
         @Cantidad,
         @TipoPago,
         @IDTipoGasto,
-        @IDTaller
+        @IDTaller,
+        @IDEmpresa
       )
     `);
 
@@ -105,10 +114,11 @@ const crear = async ({ descripcion, fecha, monto, cantidad, metodoPago, tipoGast
   return result.recordset[0] || { message: 'Gasto creado correctamente' };
 };
 
-const actualizar = async (id, { descripcion, fecha, monto, cantidad, metodoPago, tipoGastoId, tallerId }) => {
+const actualizar = async (empresaId, id, { descripcion, fecha, monto, cantidad, metodoPago, tipoGastoId, tallerId }) => {
   const pool = await getPool();
   const params = {
     IDGasto: id,
+    IDEmpresa: empresaId,
     Descripcion: descripcion,
     Fecha: fecha,
     Monto: monto,
@@ -118,8 +128,11 @@ const actualizar = async (id, { descripcion, fecha, monto, cantidad, metodoPago,
     IDTaller: tallerId
   };
 
+  await ensureGastoReferencesBelongToEmpresa(pool, params);
+
   const result = await pool.request()
     .input('IDGasto', sql.Int, params.IDGasto)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('Descripcion', sql.VarChar(255), params.Descripcion)
     .input('Fecha', sql.Date, params.Fecha)
     .input('Monto', sql.Decimal(18, 2), params.Monto)
@@ -138,6 +151,7 @@ const actualizar = async (id, { descripcion, fecha, monto, cantidad, metodoPago,
           IDTaller = @IDTaller
       OUTPUT INSERTED.*
       WHERE IDGasto = @IDGasto
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('UPDATE dbo.Gasto', params, result);
@@ -149,15 +163,17 @@ const actualizar = async (id, { descripcion, fecha, monto, cantidad, metodoPago,
   return result.recordset[0];
 };
 
-const eliminar = async (id) => {
+const eliminar = async (empresaId, id) => {
   const pool = await getPool();
-  const params = { IDGasto: id };
+  const params = { IDGasto: id, IDEmpresa: empresaId };
   const result = await pool.request()
     .input('IDGasto', sql.Int, params.IDGasto)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
       DELETE FROM dbo.Gasto
       OUTPUT DELETED.IDGasto
       WHERE IDGasto = @IDGasto
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('DELETE dbo.Gasto', params, result);
@@ -169,63 +185,69 @@ const eliminar = async (id) => {
   return { message: 'Gasto eliminado correctamente', id: result.recordset[0].IDGasto };
 };
 
-const listarTipos = async () => {
+const listarTipos = async (empresaId) => {
   const pool = await getPool();
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .query(`
       SELECT
         IDTipoGasto,
         Denominacion
       FROM dbo.TipoGasto
       WHERE Activo = 1
+        AND IDEmpresa = @IDEmpresa
       ORDER BY Denominacion
     `);
 
-  logRepositoryCall('SELECT dbo.TipoGasto', {}, result);
+  logRepositoryCall('SELECT dbo.TipoGasto', { IDEmpresa: empresaId }, result);
 
   return result.recordset || [];
 };
 
-const listarTodosTipos = async () => {
+const listarTodosTipos = async (empresaId) => {
   const pool = await getPool();
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .query(`
       SELECT
         IDTipoGasto,
         Denominacion,
         Activo
       FROM dbo.TipoGasto
+      WHERE IDEmpresa = @IDEmpresa
       ORDER BY Activo DESC, Denominacion
     `);
 
-  logRepositoryCall('SELECT dbo.TipoGasto todos', {}, result);
+  logRepositoryCall('SELECT dbo.TipoGasto todos', { IDEmpresa: empresaId }, result);
 
   return result.recordset || [];
 };
 
-const crearTipo = async (denominacion) => {
+const crearTipo = async (empresaId, denominacion) => {
   const pool = await getPool();
-  await ensureTipoNotDuplicated(pool, denominacion);
+  await ensureTipoNotDuplicated(pool, empresaId, denominacion);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .query(`
-      INSERT INTO dbo.TipoGasto (Denominacion, Activo)
+      INSERT INTO dbo.TipoGasto (Denominacion, Activo, IDEmpresa)
       OUTPUT INSERTED.IDTipoGasto, INSERTED.Denominacion, INSERTED.Activo
-      VALUES (@Denominacion, 1)
+      VALUES (@Denominacion, 1, @IDEmpresa)
     `);
 
-  logRepositoryCall('INSERT dbo.TipoGasto', { Denominacion: denominacion }, result);
+  logRepositoryCall('INSERT dbo.TipoGasto', { IDEmpresa: empresaId, Denominacion: denominacion }, result);
 
   return result.recordset[0];
 };
 
-const actualizarTipo = async (id, denominacion) => {
+const actualizarTipo = async (empresaId, id, denominacion) => {
   const pool = await getPool();
-  await ensureTipoExists(pool, id);
-  await ensureTipoNotDuplicated(pool, denominacion, id);
+  await ensureTipoExists(pool, empresaId, id);
+  await ensureTipoNotDuplicated(pool, empresaId, denominacion, id);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoGasto', sql.Int, id)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .query(`
@@ -233,18 +255,20 @@ const actualizarTipo = async (id, denominacion) => {
       SET Denominacion = @Denominacion
       OUTPUT INSERTED.IDTipoGasto, INSERTED.Denominacion, INSERTED.Activo
       WHERE IDTipoGasto = @IDTipoGasto
+        AND IDEmpresa = @IDEmpresa
     `);
 
-  logRepositoryCall('UPDATE dbo.TipoGasto', { IDTipoGasto: id, Denominacion: denominacion }, result);
+  logRepositoryCall('UPDATE dbo.TipoGasto', { IDEmpresa: empresaId, IDTipoGasto: id, Denominacion: denominacion }, result);
 
   return result.recordset[0];
 };
 
-const cambiarEstadoTipo = async (id, activo) => {
+const cambiarEstadoTipo = async (empresaId, id, activo) => {
   const pool = await getPool();
-  await ensureTipoExists(pool, id);
+  await ensureTipoExists(pool, empresaId, id);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoGasto', sql.Int, id)
     .input('Activo', sql.Bit, activo)
     .query(`
@@ -252,9 +276,10 @@ const cambiarEstadoTipo = async (id, activo) => {
       SET Activo = @Activo
       OUTPUT INSERTED.IDTipoGasto, INSERTED.Denominacion, INSERTED.Activo
       WHERE IDTipoGasto = @IDTipoGasto
+        AND IDEmpresa = @IDEmpresa
     `);
 
-  logRepositoryCall('UPDATE estado dbo.TipoGasto', { IDTipoGasto: id, Activo: activo }, result);
+  logRepositoryCall('UPDATE estado dbo.TipoGasto', { IDEmpresa: empresaId, IDTipoGasto: id, Activo: activo }, result);
 
   return {
     message: activo ? 'Tipo de gasto activado correctamente' : 'Tipo de gasto desactivado correctamente',
@@ -262,13 +287,15 @@ const cambiarEstadoTipo = async (id, activo) => {
   };
 };
 
-const ensureTipoExists = async (pool, id) => {
+const ensureTipoExists = async (pool, empresaId, id) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoGasto', sql.Int, id)
     .query(`
       SELECT IDTipoGasto
       FROM dbo.TipoGasto
       WHERE IDTipoGasto = @IDTipoGasto
+        AND IDEmpresa = @IDEmpresa
     `);
 
   if ((result.recordset || []).length === 0) {
@@ -276,14 +303,38 @@ const ensureTipoExists = async (pool, id) => {
   }
 };
 
-const ensureTipoNotDuplicated = async (pool, denominacion, excludeId = null) => {
+const ensureGastoReferencesBelongToEmpresa = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .input('IDTipoGasto', sql.Int, params.IDTipoGasto)
+    .query(`
+      SELECT
+        (SELECT COUNT(*) FROM dbo.Taller WHERE IDTaller = @IDTaller AND IDEmpresa = @IDEmpresa) AS TallerCount,
+        (SELECT COUNT(*) FROM dbo.TipoGasto WHERE IDTipoGasto = @IDTipoGasto AND IDEmpresa = @IDEmpresa) AS TipoCount
+    `);
+
+  const row = result.recordset?.[0] || {};
+
+  if (Number(row.TallerCount || 0) === 0) {
+    throw new AppError('Taller no encontrado para la empresa autenticada', 404);
+  }
+
+  if (Number(row.TipoCount || 0) === 0) {
+    throw new AppError('Tipo de gasto no encontrado para la empresa autenticada', 404);
+  }
+};
+
+const ensureTipoNotDuplicated = async (pool, empresaId, denominacion, excludeId = null) => {
+  const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .input('ExcludeId', sql.Int, excludeId)
     .query(`
       SELECT IDTipoGasto
       FROM dbo.TipoGasto
       WHERE UPPER(LTRIM(RTRIM(Denominacion))) = UPPER(LTRIM(RTRIM(@Denominacion)))
+        AND IDEmpresa = @IDEmpresa
         AND (@ExcludeId IS NULL OR IDTipoGasto <> @ExcludeId)
     `);
 

@@ -1,8 +1,9 @@
 const { getPool, sql } = require('../../config/db');
 const AppError = require('../../utils/AppError');
 
-const getResumen = async ({ tallerId, fechaInicio, fechaFin }) => {
+const getResumen = async ({ empresaId, tallerId, fechaInicio, fechaFin }) => {
   const params = {
+    IDEmpresa: empresaId,
     IDTaller: tallerId ?? null,
     FechaInicio: fechaInicio ?? null,
     FechaFin: fechaFin ?? null
@@ -13,6 +14,7 @@ const getResumen = async ({ tallerId, fechaInicio, fechaFin }) => {
   }
 
   const pool = await getPool();
+  await ensureTallerBelongsToEmpresa(pool, params);
   const [ingresosResult, gastosResult, metodosPagoResult, cobrosResult, ingresosCategoriaResult, gastosCategoriaResult] = await Promise.all([
     executeResumenProcedure(pool, 'dbo.IngresoResumen_Entre_Fechas', params),
     executeResumenProcedure(pool, 'dbo.GastoResumen_Entre_Fechas', params),
@@ -80,6 +82,7 @@ const executeResumenProcedure = async (pool, procedureName, params) => {
 
 const executeCobrosQuery = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
     .input('IDTaller', sql.Int, params.IDTaller)
@@ -95,6 +98,7 @@ const executeCobrosQuery = async (pool, params) => {
       WHERE (@FechaInicio IS NULL OR Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR Fecha <= @FechaFin)
         AND IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('SELECT dashboard cobros dbo.Ingreso', params, result);
@@ -104,6 +108,7 @@ const executeCobrosQuery = async (pool, params) => {
 
 const executeMetodosPagoQuery = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
     .input('IDTaller', sql.Int, params.IDTaller)
@@ -116,6 +121,7 @@ const executeMetodosPagoQuery = async (pool, params) => {
       WHERE (@FechaInicio IS NULL OR Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR Fecha <= @FechaFin)
         AND IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
       GROUP BY TipoPago
 
       UNION ALL
@@ -128,6 +134,7 @@ const executeMetodosPagoQuery = async (pool, params) => {
       WHERE (@FechaInicio IS NULL OR Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR Fecha <= @FechaFin)
         AND IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
       GROUP BY TipoPago
     `);
 
@@ -138,6 +145,7 @@ const executeMetodosPagoQuery = async (pool, params) => {
 
 const executeIngresosPorCategoriaQuery = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
     .input('IDTaller', sql.Int, params.IDTaller)
@@ -151,6 +159,7 @@ const executeIngresosPorCategoriaQuery = async (pool, params) => {
       WHERE (@FechaInicio IS NULL OR i.Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR i.Fecha <= @FechaFin)
         AND i.IDTaller = @IDTaller
+        AND i.IDEmpresa = @IDEmpresa
       GROUP BY ti.Denominacion
       ORDER BY total DESC
     `);
@@ -162,6 +171,7 @@ const executeIngresosPorCategoriaQuery = async (pool, params) => {
 
 const executeGastosPorCategoriaQuery = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
     .input('IDTaller', sql.Int, params.IDTaller)
@@ -175,6 +185,7 @@ const executeGastosPorCategoriaQuery = async (pool, params) => {
       WHERE (@FechaInicio IS NULL OR g.Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR g.Fecha <= @FechaFin)
         AND g.IDTaller = @IDTaller
+        AND g.IDEmpresa = @IDEmpresa
       GROUP BY tg.Denominacion
       ORDER BY total DESC
     `);
@@ -213,6 +224,22 @@ const normalize = (value) => String(value || '')
   .toLowerCase()
   .normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '');
+
+const ensureTallerBelongsToEmpresa = async (pool, params) => {
+  const result = await pool.request()
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
+    .query(`
+      SELECT IDTaller
+      FROM dbo.Taller
+      WHERE IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
+    `);
+
+  if ((result.recordset || []).length === 0) {
+    throw new AppError('Taller no encontrado para la empresa autenticada', 404);
+  }
+};
 
 const logRepositoryCall = (procedureName, params, result) => {
   if (process.env.NODE_ENV !== 'production') {

@@ -1,10 +1,11 @@
 const gastosRepository = require('./gastos.repository');
 const { crearGastoSchema, gastoParamsSchema, listarGastosQuerySchema, tipoGastoParamsSchema, tipoGastoSchema } = require('./gastos.schema');
 
-const listar = async (filters) => {
+const listar = async (empresaId, filters) => {
   const validatedFilters = listarGastosQuerySchema.parse(filters);
 
   return gastosRepository.listar({
+    empresaId,
     tallerId: validatedFilters.tallerId ?? null,
     fechaInicio: validatedFilters.fechaInicio ?? null,
     fechaFin: validatedFilters.fechaFin ?? null,
@@ -15,10 +16,11 @@ const listar = async (filters) => {
   });
 };
 
-const crear = async (data) => {
+const crear = async (empresaId, data) => {
   const validatedData = crearGastoSchema.parse(data);
 
   return gastosRepository.crear({
+    empresaId,
     descripcion: validatedData.descripcion,
     fecha: validatedData.fecha,
     monto: validatedData.monto,
@@ -29,11 +31,11 @@ const crear = async (data) => {
   });
 };
 
-const actualizar = async (params, data) => {
+const actualizar = async (empresaId, params, data) => {
   const validatedParams = gastoParamsSchema.parse(params);
   const validatedData = crearGastoSchema.parse(data);
 
-  return gastosRepository.actualizar(validatedParams.id, {
+  return gastosRepository.actualizar(empresaId, validatedParams.id, {
     descripcion: validatedData.descripcion,
     fecha: validatedData.fecha,
     monto: validatedData.monto,
@@ -44,43 +46,43 @@ const actualizar = async (params, data) => {
   });
 };
 
-const eliminar = async (params) => {
+const eliminar = async (empresaId, params) => {
   const validatedParams = gastoParamsSchema.parse(params);
 
-  return gastosRepository.eliminar(validatedParams.id);
+  return gastosRepository.eliminar(empresaId, validatedParams.id);
 };
 
-const listarTipos = async () => {
-  return gastosRepository.listarTipos();
+const listarTipos = async (empresaId) => {
+  return gastosRepository.listarTipos(empresaId);
 };
 
-const listarTodosTipos = async () => {
-  return gastosRepository.listarTodosTipos();
+const listarTodosTipos = async (empresaId) => {
+  return gastosRepository.listarTodosTipos(empresaId);
 };
 
-const crearTipo = async (data) => {
+const crearTipo = async (empresaId, data) => {
   const validatedData = tipoGastoSchema.parse(data);
 
-  return gastosRepository.crearTipo(validatedData.denominacion);
+  return gastosRepository.crearTipo(empresaId, validatedData.denominacion);
 };
 
-const actualizarTipo = async (params, data) => {
+const actualizarTipo = async (empresaId, params, data) => {
   const validatedParams = tipoGastoParamsSchema.parse(params);
   const validatedData = tipoGastoSchema.parse(data);
 
-  return gastosRepository.actualizarTipo(validatedParams.id, validatedData.denominacion);
+  return gastosRepository.actualizarTipo(empresaId, validatedParams.id, validatedData.denominacion);
 };
 
-const desactivarTipo = async (params) => {
+const desactivarTipo = async (empresaId, params) => {
   const validatedParams = tipoGastoParamsSchema.parse(params);
 
-  return gastosRepository.cambiarEstadoTipo(validatedParams.id, false);
+  return gastosRepository.cambiarEstadoTipo(empresaId, validatedParams.id, false);
 };
 
-const activarTipo = async (params) => {
+const activarTipo = async (empresaId, params) => {
   const validatedParams = tipoGastoParamsSchema.parse(params);
 
-  return gastosRepository.cambiarEstadoTipo(validatedParams.id, true);
+  return gastosRepository.cambiarEstadoTipo(empresaId, validatedParams.id, true);
 };
 
 module.exports = {

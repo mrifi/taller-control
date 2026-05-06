@@ -7,6 +7,7 @@ const buscarPorEmail = async (email) => {
     .query(`
       SELECT
         IDUsuario,
+        IDEmpresa,
         Nombre,
         Email,
         PasswordHash,

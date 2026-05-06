@@ -1,12 +1,16 @@
 const { getPool, sql } = require('../../config/db');
+const AppError = require('../../utils/AppError');
 
-const obtenerResumen = async ({ tallerId, fechaInicio, fechaFin }) => {
+const obtenerResumen = async ({ empresaId, tallerId, fechaInicio, fechaFin }) => {
   const pool = await getPool();
   const params = {
+    IDEmpresa: empresaId,
     IDTaller: tallerId,
     FechaInicio: fechaInicio,
     FechaFin: fechaFin
   };
+
+  await ensureTallerBelongsToEmpresa(pool, params);
 
   const [resumenResult, ingresosResult, gastosResult, pendientesResult, ingresosCategoriaResult, gastosCategoriaResult] = await Promise.all([
     getResumen(pool, params),
@@ -40,6 +44,7 @@ const obtenerResumen = async ({ tallerId, fechaInicio, fechaFin }) => {
 };
 
 const baseRequest = (pool, params) => pool.request()
+  .input('IDEmpresa', sql.Int, params.IDEmpresa)
   .input('FechaInicio', sql.Date, params.FechaInicio)
   .input('FechaFin', sql.Date, params.FechaFin)
   .input('IDTaller', sql.Int, params.IDTaller);
@@ -59,11 +64,13 @@ const getResumen = async (pool, params) => {
         WHERE g.Fecha >= @FechaInicio
           AND g.Fecha <= @FechaFin
           AND g.IDTaller = @IDTaller
+          AND g.IDEmpresa = @IDEmpresa
       ) AS TotalGastos
     FROM dbo.Ingreso i
     WHERE i.Fecha >= @FechaInicio
       AND i.Fecha <= @FechaFin
       AND i.IDTaller = @IDTaller
+      AND i.IDEmpresa = @IDEmpresa
   `);
 
   logRepositoryCall('SELECT reporte resumen', params, result);
@@ -90,6 +97,7 @@ const getIngresos = async (pool, params) => {
     WHERE i.Fecha >= @FechaInicio
       AND i.Fecha <= @FechaFin
       AND i.IDTaller = @IDTaller
+      AND i.IDEmpresa = @IDEmpresa
     ORDER BY i.Fecha DESC, i.IDIngreso DESC
   `);
 
@@ -113,6 +121,7 @@ const getGastos = async (pool, params) => {
     WHERE g.Fecha >= @FechaInicio
       AND g.Fecha <= @FechaFin
       AND g.IDTaller = @IDTaller
+      AND g.IDEmpresa = @IDEmpresa
     ORDER BY g.Fecha DESC, g.IDGasto DESC
   `);
 
@@ -139,6 +148,7 @@ const getPendientes = async (pool, params) => {
     WHERE i.Fecha >= @FechaInicio
       AND i.Fecha <= @FechaFin
       AND i.IDTaller = @IDTaller
+      AND i.IDEmpresa = @IDEmpresa
       AND i.EstadoPago = 'PENDIENTE'
     ORDER BY i.FechaPagoPrevista ASC, i.IDIngreso DESC
   `);
@@ -159,6 +169,7 @@ const getIngresosPorCategoria = async (pool, params) => {
     WHERE i.Fecha >= @FechaInicio
       AND i.Fecha <= @FechaFin
       AND i.IDTaller = @IDTaller
+      AND i.IDEmpresa = @IDEmpresa
     GROUP BY ti.Denominacion
     ORDER BY total DESC
   `);
@@ -179,6 +190,7 @@ const getGastosPorCategoria = async (pool, params) => {
     WHERE g.Fecha >= @FechaInicio
       AND g.Fecha <= @FechaFin
       AND g.IDTaller = @IDTaller
+      AND g.IDEmpresa = @IDEmpresa
     GROUP BY tg.Denominacion
     ORDER BY total DESC
   `);
@@ -199,6 +211,22 @@ const normalizeCategoryRows = (rows = []) => rows.map((row) => ({
   cantidad: toNumber(row.cantidad ?? row.Cantidad),
   total: toNumber(row.total ?? row.Total)
 }));
+
+const ensureTallerBelongsToEmpresa = async (pool, params) => {
+  const result = await pool.request()
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
+    .query(`
+      SELECT IDTaller
+      FROM dbo.Taller
+      WHERE IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
+    `);
+
+  if ((result.recordset || []).length === 0) {
+    throw new AppError('Taller no encontrado para la empresa autenticada', 404);
+  }
+};
 
 const logRepositoryCall = (operationName, params, result) => {
   if (process.env.NODE_ENV !== 'production') {

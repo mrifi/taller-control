@@ -32,6 +32,7 @@ const login = async (data) => {
 
   const user = {
     id: usuario.IDUsuario,
+    empresaId: usuario.IDEmpresa,
     nombre: usuario.Nombre,
     email: usuario.Email,
     rol: usuario.Rol
@@ -40,6 +41,7 @@ const login = async (data) => {
   const token = jwt.sign(
     {
       id: usuario.IDUsuario,
+      empresaId: usuario.IDEmpresa,
       email: usuario.Email,
       rol: usuario.Rol
     },

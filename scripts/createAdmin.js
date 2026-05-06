@@ -9,10 +9,29 @@ const ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
 
 const ensureUsuarioTable = async (pool) => {
   await pool.request().query(`
+    IF OBJECT_ID('dbo.Empresa', 'U') IS NULL
+    BEGIN
+      CREATE TABLE dbo.Empresa (
+        IDEmpresa INT IDENTITY(1,1) PRIMARY KEY,
+        Nombre NVARCHAR(150) NOT NULL,
+        Activa BIT NOT NULL DEFAULT 1,
+        FechaCreacion DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+      );
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.Empresa WHERE IDEmpresa = 1)
+    BEGIN
+      SET IDENTITY_INSERT dbo.Empresa ON;
+      INSERT INTO dbo.Empresa (IDEmpresa, Nombre, Activa)
+      VALUES (1, 'Empresa inicial', 1);
+      SET IDENTITY_INSERT dbo.Empresa OFF;
+    END;
+
     IF OBJECT_ID('dbo.Usuario', 'U') IS NULL
     BEGIN
       CREATE TABLE dbo.Usuario (
         IDUsuario INT IDENTITY(1,1) PRIMARY KEY,
+        IDEmpresa INT NOT NULL,
         Nombre NVARCHAR(100) NOT NULL,
         Email NVARCHAR(150) NOT NULL UNIQUE,
         PasswordHash NVARCHAR(255) NOT NULL,
@@ -21,6 +40,11 @@ const ensureUsuarioTable = async (pool) => {
         FechaCreacion DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
       );
     END
+
+    IF COL_LENGTH('dbo.Usuario', 'IDEmpresa') IS NULL
+      ALTER TABLE dbo.Usuario ADD IDEmpresa INT NULL;
+
+    EXEC('UPDATE dbo.Usuario SET IDEmpresa = 1 WHERE IDEmpresa IS NULL');
   `);
 };
 
@@ -49,9 +73,9 @@ const createAdmin = async () => {
     .input('PasswordHash', sql.NVarChar(255), passwordHash)
     .input('Rol', sql.NVarChar(50), 'admin')
     .query(`
-      INSERT INTO dbo.Usuario (Nombre, Email, PasswordHash, Rol, Activo)
-      OUTPUT INSERTED.IDUsuario, INSERTED.Nombre, INSERTED.Email, INSERTED.Rol, INSERTED.Activo
-      VALUES (@Nombre, @Email, @PasswordHash, @Rol, 1)
+      INSERT INTO dbo.Usuario (IDEmpresa, Nombre, Email, PasswordHash, Rol, Activo)
+      OUTPUT INSERTED.IDUsuario, INSERTED.IDEmpresa, INSERTED.Nombre, INSERTED.Email, INSERTED.Rol, INSERTED.Activo
+      VALUES (1, @Nombre, @Email, @PasswordHash, @Rol, 1)
     `);
 
   console.log('Usuario admin creado:', result.recordset[0]);

@@ -1,9 +1,10 @@
 const { getPool, sql } = require('../../config/db');
 const AppError = require('../../utils/AppError');
 
-const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, estadoPago, limit, offset }) => {
+const listar = async ({ empresaId, tallerId, fechaInicio, fechaFin, metodoPago, estadoPago, limit, offset }) => {
   const pool = await getPool();
   const params = {
+    IDEmpresa: empresaId,
     IDTaller: tallerId ?? null,
     FechaInicio: fechaInicio ?? null,
     FechaFin: fechaFin ?? null,
@@ -14,6 +15,7 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, estadoPago,
   };
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('IDTaller', sql.Int, params.IDTaller)
     .input('FechaInicio', sql.Date, params.FechaInicio)
     .input('FechaFin', sql.Date, params.FechaFin)
@@ -40,7 +42,8 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, estadoPago,
       FROM dbo.Ingreso i
       LEFT JOIN dbo.TipoIngreso ti ON ti.IDTipoIngreso = i.IDTipoIngreso
       LEFT JOIN dbo.Taller t ON t.IDTaller = i.IDTaller
-      WHERE (@IDTaller IS NULL OR i.IDTaller = @IDTaller)
+      WHERE i.IDEmpresa = @IDEmpresa
+        AND (@IDTaller IS NULL OR i.IDTaller = @IDTaller)
         AND (@FechaInicio IS NULL OR i.Fecha >= @FechaInicio)
         AND (@FechaFin IS NULL OR i.Fecha <= @FechaFin)
         AND (@TipoPago IS NULL OR i.TipoPago = @TipoPago)
@@ -63,6 +66,7 @@ const listar = async ({ tallerId, fechaInicio, fechaFin, metodoPago, estadoPago,
 };
 
 const crear = async ({
+  empresaId,
   descripcion,
   fecha,
   monto,
@@ -89,8 +93,12 @@ const crear = async ({
     FechaPagoReal: fechaPagoReal ?? (estadoPago === 'CONFIRMADO' ? new Date() : null),
     Cliente: cliente
   };
+  params.IDEmpresa = empresaId;
+
+  await ensureIngresoReferencesBelongToEmpresa(pool, params);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('Descripcion', sql.VarChar(255), params.Descripcion)
     .input('Fecha', sql.Date, params.Fecha)
     .input('Monto', sql.Decimal(18, 2), params.Monto)
@@ -114,7 +122,8 @@ const crear = async ({
         EstadoPago,
         FechaPagoPrevista,
         FechaPagoReal,
-        Cliente
+        Cliente,
+        IDEmpresa
       )
       OUTPUT INSERTED.*
       VALUES (
@@ -128,7 +137,8 @@ const crear = async ({
         @EstadoPago,
         @FechaPagoPrevista,
         @FechaPagoReal,
-        @Cliente
+        @Cliente,
+        @IDEmpresa
       )
     `);
 
@@ -137,7 +147,7 @@ const crear = async ({
   return result.recordset[0] || { message: 'Ingreso creado correctamente' };
 };
 
-const actualizar = async (id, {
+const actualizar = async (empresaId, id, {
   descripcion,
   fecha,
   monto,
@@ -152,6 +162,7 @@ const actualizar = async (id, {
   const pool = await getPool();
   const params = {
     IDIngreso: id,
+    IDEmpresa: empresaId,
     Descripcion: descripcion,
     Fecha: fecha,
     Monto: monto,
@@ -165,8 +176,11 @@ const actualizar = async (id, {
     Cliente: cliente
   };
 
+  await ensureIngresoReferencesBelongToEmpresa(pool, params);
+
   const result = await pool.request()
     .input('IDIngreso', sql.Int, params.IDIngreso)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .input('Descripcion', sql.VarChar(255), params.Descripcion)
     .input('Fecha', sql.Date, params.Fecha)
     .input('Monto', sql.Decimal(18, 2), params.Monto)
@@ -193,6 +207,7 @@ const actualizar = async (id, {
           Cliente = @Cliente
       OUTPUT INSERTED.*
       WHERE IDIngreso = @IDIngreso
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('UPDATE dbo.Ingreso', params, result);
@@ -204,15 +219,17 @@ const actualizar = async (id, {
   return result.recordset[0];
 };
 
-const eliminar = async (id) => {
+const eliminar = async (empresaId, id) => {
   const pool = await getPool();
-  const params = { IDIngreso: id };
+  const params = { IDIngreso: id, IDEmpresa: empresaId };
   const result = await pool.request()
     .input('IDIngreso', sql.Int, params.IDIngreso)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
       DELETE FROM dbo.Ingreso
       OUTPUT DELETED.IDIngreso
       WHERE IDIngreso = @IDIngreso
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('DELETE dbo.Ingreso', params, result);
@@ -224,77 +241,94 @@ const eliminar = async (id) => {
   return { message: 'Ingreso eliminado correctamente', id: result.recordset[0].IDIngreso };
 };
 
-const marcarComoCobrado = async (id) => {
+const marcarComoCobrado = async (empresaId, id) => {
   const pool = await getPool();
-  const procedureName = 'dbo.Ingreso_Marcar_Como_Cobrado';
-  const params = { IDIngreso: id };
+  const params = { IDIngreso: id, IDEmpresa: empresaId };
 
   const result = await pool.request()
     .input('IDIngreso', sql.Int, params.IDIngreso)
-    .execute(procedureName);
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
+    .query(`
+      UPDATE dbo.Ingreso
+      SET EstadoPago = 'CONFIRMADO',
+          FechaPagoReal = CAST(GETDATE() AS DATE)
+      OUTPUT INSERTED.*
+      WHERE IDIngreso = @IDIngreso
+        AND IDEmpresa = @IDEmpresa
+    `);
 
-  logRepositoryCall(procedureName, params, result);
+  logRepositoryCall('UPDATE dbo.Ingreso marcar cobrado', params, result);
 
-  return result.recordset?.[0] || { message: 'Ingreso marcado como cobrado correctamente' };
+  if (!result.recordset?.[0]) {
+    throw new AppError('Ingreso no encontrado', 404);
+  }
+
+  return result.recordset[0];
 };
 
-const listarCategorias = async () => {
+const listarCategorias = async (empresaId) => {
   const pool = await getPool();
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .query(`
       SELECT
         IDTipoIngreso,
         Denominacion
       FROM dbo.TipoIngreso
       WHERE Activo = 1
+        AND IDEmpresa = @IDEmpresa
       ORDER BY Denominacion
     `);
 
-  logRepositoryCall('SELECT dbo.TipoIngreso', {}, result);
+  logRepositoryCall('SELECT dbo.TipoIngreso', { IDEmpresa: empresaId }, result);
 
   return result.recordset;
 };
 
-const listarTodasCategorias = async () => {
+const listarTodasCategorias = async (empresaId) => {
   const pool = await getPool();
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .query(`
       SELECT
         IDTipoIngreso,
         Denominacion,
         Activo
       FROM dbo.TipoIngreso
+      WHERE IDEmpresa = @IDEmpresa
       ORDER BY Activo DESC, Denominacion
     `);
 
-  logRepositoryCall('SELECT dbo.TipoIngreso todas', {}, result);
+  logRepositoryCall('SELECT dbo.TipoIngreso todas', { IDEmpresa: empresaId }, result);
 
   return result.recordset || [];
 };
 
-const crearCategoria = async (denominacion) => {
+const crearCategoria = async (empresaId, denominacion) => {
   const pool = await getPool();
-  await ensureCategoriaNotDuplicated(pool, denominacion);
+  await ensureCategoriaNotDuplicated(pool, empresaId, denominacion);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .query(`
-      INSERT INTO dbo.TipoIngreso (Denominacion, Activo)
+      INSERT INTO dbo.TipoIngreso (Denominacion, Activo, IDEmpresa)
       OUTPUT INSERTED.IDTipoIngreso, INSERTED.Denominacion, INSERTED.Activo
-      VALUES (@Denominacion, 1)
+      VALUES (@Denominacion, 1, @IDEmpresa)
     `);
 
-  logRepositoryCall('INSERT dbo.TipoIngreso', { Denominacion: denominacion }, result);
+  logRepositoryCall('INSERT dbo.TipoIngreso', { IDEmpresa: empresaId, Denominacion: denominacion }, result);
 
   return result.recordset[0];
 };
 
-const actualizarCategoria = async (id, denominacion) => {
+const actualizarCategoria = async (empresaId, id, denominacion) => {
   const pool = await getPool();
-  await ensureCategoriaExists(pool, id);
-  await ensureCategoriaNotDuplicated(pool, denominacion, id);
+  await ensureCategoriaExists(pool, empresaId, id);
+  await ensureCategoriaNotDuplicated(pool, empresaId, denominacion, id);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoIngreso', sql.Int, id)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .query(`
@@ -302,18 +336,20 @@ const actualizarCategoria = async (id, denominacion) => {
       SET Denominacion = @Denominacion
       OUTPUT INSERTED.IDTipoIngreso, INSERTED.Denominacion, INSERTED.Activo
       WHERE IDTipoIngreso = @IDTipoIngreso
+        AND IDEmpresa = @IDEmpresa
     `);
 
-  logRepositoryCall('UPDATE dbo.TipoIngreso', { IDTipoIngreso: id, Denominacion: denominacion }, result);
+  logRepositoryCall('UPDATE dbo.TipoIngreso', { IDEmpresa: empresaId, IDTipoIngreso: id, Denominacion: denominacion }, result);
 
   return result.recordset[0];
 };
 
-const cambiarEstadoCategoria = async (id, activo) => {
+const cambiarEstadoCategoria = async (empresaId, id, activo) => {
   const pool = await getPool();
-  await ensureCategoriaExists(pool, id);
+  await ensureCategoriaExists(pool, empresaId, id);
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoIngreso', sql.Int, id)
     .input('Activo', sql.Bit, activo)
     .query(`
@@ -321,9 +357,10 @@ const cambiarEstadoCategoria = async (id, activo) => {
       SET Activo = @Activo
       OUTPUT INSERTED.IDTipoIngreso, INSERTED.Denominacion, INSERTED.Activo
       WHERE IDTipoIngreso = @IDTipoIngreso
+        AND IDEmpresa = @IDEmpresa
     `);
 
-  logRepositoryCall('UPDATE estado dbo.TipoIngreso', { IDTipoIngreso: id, Activo: activo }, result);
+  logRepositoryCall('UPDATE estado dbo.TipoIngreso', { IDEmpresa: empresaId, IDTipoIngreso: id, Activo: activo }, result);
 
   return {
     message: activo ? 'Categoria activada correctamente' : 'Categoria desactivada correctamente',
@@ -331,13 +368,15 @@ const cambiarEstadoCategoria = async (id, activo) => {
   };
 };
 
-const ensureCategoriaExists = async (pool, id) => {
+const ensureCategoriaExists = async (pool, empresaId, id) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('IDTipoIngreso', sql.Int, id)
     .query(`
       SELECT IDTipoIngreso
       FROM dbo.TipoIngreso
       WHERE IDTipoIngreso = @IDTipoIngreso
+        AND IDEmpresa = @IDEmpresa
     `);
 
   if ((result.recordset || []).length === 0) {
@@ -345,14 +384,38 @@ const ensureCategoriaExists = async (pool, id) => {
   }
 };
 
-const ensureCategoriaNotDuplicated = async (pool, denominacion, excludeId = null) => {
+const ensureIngresoReferencesBelongToEmpresa = async (pool, params) => {
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
+    .input('IDTaller', sql.Int, params.IDTaller)
+    .input('IDTipoIngreso', sql.Int, params.IDTipoIngreso)
+    .query(`
+      SELECT
+        (SELECT COUNT(*) FROM dbo.Taller WHERE IDTaller = @IDTaller AND IDEmpresa = @IDEmpresa) AS TallerCount,
+        (SELECT COUNT(*) FROM dbo.TipoIngreso WHERE IDTipoIngreso = @IDTipoIngreso AND IDEmpresa = @IDEmpresa) AS CategoriaCount
+    `);
+
+  const row = result.recordset?.[0] || {};
+
+  if (Number(row.TallerCount || 0) === 0) {
+    throw new AppError('Taller no encontrado para la empresa autenticada', 404);
+  }
+
+  if (Number(row.CategoriaCount || 0) === 0) {
+    throw new AppError('Categoria no encontrada para la empresa autenticada', 404);
+  }
+};
+
+const ensureCategoriaNotDuplicated = async (pool, empresaId, denominacion, excludeId = null) => {
+  const result = await pool.request()
+    .input('IDEmpresa', sql.Int, empresaId)
     .input('Denominacion', sql.VarChar(100), denominacion)
     .input('ExcludeId', sql.Int, excludeId)
     .query(`
       SELECT IDTipoIngreso
       FROM dbo.TipoIngreso
       WHERE UPPER(LTRIM(RTRIM(Denominacion))) = UPPER(LTRIM(RTRIM(@Denominacion)))
+        AND IDEmpresa = @IDEmpresa
         AND (@ExcludeId IS NULL OR IDTipoIngreso <> @ExcludeId)
     `);
 
@@ -374,12 +437,12 @@ const logRepositoryCall = (operationName, params, result) => {
 module.exports = {
   listar,
   crear,
-  activarCategoria: (id) => cambiarEstadoCategoria(id, true),
+  activarCategoria: (empresaId, id) => cambiarEstadoCategoria(empresaId, id, true),
   actualizar,
   actualizarCategoria,
   cambiarEstadoCategoria,
   crearCategoria,
-  desactivarCategoria: (id) => cambiarEstadoCategoria(id, false),
+  desactivarCategoria: (empresaId, id) => cambiarEstadoCategoria(empresaId, id, false),
   eliminar,
   listarCategorias,
   listarTodasCategorias,

@@ -2,7 +2,7 @@ const gastosService = require('./gastos.service');
 
 const listar = async (req, res, next) => {
   try {
-    const gastos = await gastosService.listar(req.query);
+    const gastos = await gastosService.listar(req.user.empresaId, req.query);
     res.json(gastos);
   } catch (error) {
     next(error);
@@ -11,7 +11,7 @@ const listar = async (req, res, next) => {
 
 const crear = async (req, res, next) => {
   try {
-    const gasto = await gastosService.crear(req.body);
+    const gasto = await gastosService.crear(req.user.empresaId, req.body);
     res.status(201).json(gasto);
   } catch (error) {
     next(error);
@@ -20,7 +20,7 @@ const crear = async (req, res, next) => {
 
 const actualizar = async (req, res, next) => {
   try {
-    const gasto = await gastosService.actualizar(req.params, req.body);
+    const gasto = await gastosService.actualizar(req.user.empresaId, req.params, req.body);
     res.json(gasto);
   } catch (error) {
     next(error);
@@ -29,7 +29,7 @@ const actualizar = async (req, res, next) => {
 
 const eliminar = async (req, res, next) => {
   try {
-    const result = await gastosService.eliminar(req.params);
+    const result = await gastosService.eliminar(req.user.empresaId, req.params);
     res.json(result);
   } catch (error) {
     next(error);
@@ -38,7 +38,7 @@ const eliminar = async (req, res, next) => {
 
 const listarTipos = async (req, res, next) => {
   try {
-    const tipos = await gastosService.listarTipos();
+    const tipos = await gastosService.listarTipos(req.user.empresaId);
     res.json(tipos);
   } catch (error) {
     next(error);
@@ -47,7 +47,7 @@ const listarTipos = async (req, res, next) => {
 
 const listarTodosTipos = async (req, res, next) => {
   try {
-    const tipos = await gastosService.listarTodosTipos();
+    const tipos = await gastosService.listarTodosTipos(req.user.empresaId);
     res.json(tipos);
   } catch (error) {
     next(error);
@@ -56,7 +56,7 @@ const listarTodosTipos = async (req, res, next) => {
 
 const crearTipo = async (req, res, next) => {
   try {
-    const tipo = await gastosService.crearTipo(req.body);
+    const tipo = await gastosService.crearTipo(req.user.empresaId, req.body);
     res.status(201).json(tipo);
   } catch (error) {
     next(error);
@@ -65,7 +65,7 @@ const crearTipo = async (req, res, next) => {
 
 const actualizarTipo = async (req, res, next) => {
   try {
-    const tipo = await gastosService.actualizarTipo(req.params, req.body);
+    const tipo = await gastosService.actualizarTipo(req.user.empresaId, req.params, req.body);
     res.json(tipo);
   } catch (error) {
     next(error);
@@ -74,7 +74,7 @@ const actualizarTipo = async (req, res, next) => {
 
 const desactivarTipo = async (req, res, next) => {
   try {
-    const result = await gastosService.desactivarTipo(req.params);
+    const result = await gastosService.desactivarTipo(req.user.empresaId, req.params);
     res.json(result);
   } catch (error) {
     next(error);
@@ -83,7 +83,7 @@ const desactivarTipo = async (req, res, next) => {
 
 const activarTipo = async (req, res, next) => {
   try {
-    const result = await gastosService.activarTipo(req.params);
+    const result = await gastosService.activarTipo(req.user.empresaId, req.params);
     res.json(result);
   } catch (error) {
     next(error);

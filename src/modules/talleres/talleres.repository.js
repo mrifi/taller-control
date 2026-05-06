@@ -4,27 +4,32 @@ const AppError = require('../../utils/AppError');
 const MAX_TALLERES = 2;
 const LIMIT_MESSAGE = 'Has alcanzado el límite de 2 talleres. Contacta para ampliar tu plan.';
 
-const listar = async () => {
+const listar = async (empresaId) => {
   const pool = await getPool();
+  const params = { IDEmpresa: empresaId };
 
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
       SELECT
         IDTaller,
         Nombre,
         Codigo
       FROM dbo.Taller
+      WHERE IDEmpresa = @IDEmpresa
       ORDER BY IDTaller
     `);
 
-  logRepositoryCall('SELECT dbo.Taller', {}, result);
+  logRepositoryCall('SELECT dbo.Taller', params, result);
 
   return result.recordset || [];
 };
 
-const obtenerComparativa = async () => {
+const obtenerComparativa = async (empresaId) => {
   const pool = await getPool();
+  const params = { IDEmpresa: empresaId };
   const result = await pool.request()
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
       DECLARE @FechaInicio DATE = DATEADD(DAY, -30, CAST(GETDATE() AS DATE));
       DECLARE @FechaFin DATE = CAST(GETDATE() AS DATE);
@@ -40,6 +45,7 @@ const obtenerComparativa = async () => {
         FROM dbo.Ingreso i
         WHERE i.Fecha >= @FechaInicio
           AND i.Fecha <= @FechaFin
+          AND i.IDEmpresa = @IDEmpresa
         GROUP BY i.IDTaller
       ),
       gastosPorTaller AS (
@@ -49,6 +55,7 @@ const obtenerComparativa = async () => {
         FROM dbo.Gasto g
         WHERE g.Fecha >= @FechaInicio
           AND g.Fecha <= @FechaFin
+          AND g.IDEmpresa = @IDEmpresa
         GROUP BY g.IDTaller
       )
       SELECT
@@ -65,10 +72,11 @@ const obtenerComparativa = async () => {
       FROM dbo.Taller t
       LEFT JOIN ingresosPorTaller i ON i.IDTaller = t.IDTaller
       LEFT JOIN gastosPorTaller g ON g.IDTaller = t.IDTaller
+      WHERE t.IDEmpresa = @IDEmpresa
       ORDER BY t.IDTaller
     `);
 
-  logRepositoryCall('SELECT comparativa dbo.Taller', {}, result);
+  logRepositoryCall('SELECT comparativa dbo.Taller', params, result);
 
   return (result.recordset || []).map((row) => ({
     IDTaller: row.IDTaller,
@@ -84,9 +92,9 @@ const obtenerComparativa = async () => {
   }));
 };
 
-const crear = async ({ Nombre, Codigo }) => {
+const crear = async (empresaId, { Nombre, Codigo }) => {
   const pool = await getPool();
-  const count = await contarTalleres(pool);
+  const count = await contarTalleres(pool, empresaId);
 
   if (count >= MAX_TALLERES) {
     throw new AppError(LIMIT_MESSAGE, 400);
@@ -94,16 +102,18 @@ const crear = async ({ Nombre, Codigo }) => {
 
   const params = {
     Nombre,
-    Codigo: Codigo ?? null
+    Codigo: Codigo ?? null,
+    IDEmpresa: empresaId
   };
 
   const result = await pool.request()
     .input('Nombre', sql.VarChar(150), params.Nombre)
     .input('Codigo', sql.VarChar(50), params.Codigo)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
-      INSERT INTO dbo.Taller (Nombre, Codigo)
+      INSERT INTO dbo.Taller (Nombre, Codigo, IDEmpresa)
       OUTPUT INSERTED.IDTaller, INSERTED.Nombre, INSERTED.Codigo
-      VALUES (@Nombre, @Codigo)
+      VALUES (@Nombre, @Codigo, @IDEmpresa)
     `);
 
   logRepositoryCall('INSERT dbo.Taller', params, result);
@@ -111,24 +121,27 @@ const crear = async ({ Nombre, Codigo }) => {
   return result.recordset[0];
 };
 
-const actualizar = async (id, { Nombre, Codigo }) => {
+const actualizar = async (empresaId, id, { Nombre, Codigo }) => {
   const pool = await getPool();
   const params = {
     IDTaller: id,
     Nombre,
-    Codigo: Codigo ?? null
+    Codigo: Codigo ?? null,
+    IDEmpresa: empresaId
   };
 
   const result = await pool.request()
     .input('IDTaller', sql.Int, params.IDTaller)
     .input('Nombre', sql.VarChar(150), params.Nombre)
     .input('Codigo', sql.VarChar(50), params.Codigo)
+    .input('IDEmpresa', sql.Int, params.IDEmpresa)
     .query(`
       UPDATE dbo.Taller
       SET Nombre = @Nombre,
           Codigo = @Codigo
       OUTPUT INSERTED.IDTaller, INSERTED.Nombre, INSERTED.Codigo
       WHERE IDTaller = @IDTaller
+        AND IDEmpresa = @IDEmpresa
     `);
 
   logRepositoryCall('UPDATE dbo.Taller', params, result);
@@ -140,9 +153,10 @@ const actualizar = async (id, { Nombre, Codigo }) => {
   return result.recordset[0];
 };
 
-const contarTalleres = async (pool) => {
+const contarTalleres = async (pool, empresaId) => {
   const result = await pool.request()
-    .query('SELECT COUNT(*) AS Total FROM dbo.Taller');
+    .input('IDEmpresa', sql.Int, empresaId)
+    .query('SELECT COUNT(*) AS Total FROM dbo.Taller WHERE IDEmpresa = @IDEmpresa');
 
   return Number(result.recordset?.[0]?.Total || 0);
 };
