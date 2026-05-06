@@ -3,9 +3,9 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const { getPool, sql } = require('../src/config/db');
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@tallercontrol.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Cambiar123!';
-const ADMIN_NAME = process.env.ADMIN_NAME || 'Administrador';
+const OWNER_EMAIL = process.env.OWNER_EMAIL || 'neumaticosidriss@email.com';
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || process.env.ADMIN_PASSWORD || 'Cambiar123!';
+const OWNER_NAME = process.env.OWNER_NAME || 'Neumáticos Idriss';
 
 const ensureUsuarioTable = async (pool) => {
   await pool.request().query(`
@@ -14,18 +14,23 @@ const ensureUsuarioTable = async (pool) => {
       CREATE TABLE dbo.Empresa (
         IDEmpresa INT IDENTITY(1,1) PRIMARY KEY,
         Nombre NVARCHAR(150) NOT NULL,
+        Slug NVARCHAR(100) NULL,
         Activa BIT NOT NULL DEFAULT 1,
         FechaCreacion DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
       );
     END;
 
+    IF COL_LENGTH('dbo.Empresa', 'Slug') IS NULL
+      ALTER TABLE dbo.Empresa ADD Slug NVARCHAR(100) NULL;
+
     IF NOT EXISTS (SELECT 1 FROM dbo.Empresa WHERE IDEmpresa = 1)
     BEGIN
       SET IDENTITY_INSERT dbo.Empresa ON;
-      INSERT INTO dbo.Empresa (IDEmpresa, Nombre, Activa)
-      VALUES (1, 'Empresa inicial', 1);
+      EXEC('INSERT INTO dbo.Empresa (IDEmpresa, Nombre, Slug, Activa) VALUES (1, N''Neumáticos Idriss'', N''neumaticos-idriss'', 1)');
       SET IDENTITY_INSERT dbo.Empresa OFF;
     END;
+
+    EXEC('UPDATE dbo.Empresa SET Nombre = N''Neumáticos Idriss'', Slug = N''neumaticos-idriss'', Activa = 1 WHERE IDEmpresa = 1');
 
     IF OBJECT_ID('dbo.Usuario', 'U') IS NULL
     BEGIN
@@ -35,7 +40,7 @@ const ensureUsuarioTable = async (pool) => {
         Nombre NVARCHAR(100) NOT NULL,
         Email NVARCHAR(150) NOT NULL UNIQUE,
         PasswordHash NVARCHAR(255) NOT NULL,
-        Rol NVARCHAR(50) NOT NULL DEFAULT 'admin',
+        Rol NVARCHAR(50) NOT NULL DEFAULT 'OWNER',
         Activo BIT NOT NULL DEFAULT 1,
         FechaCreacion DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
       );
@@ -53,7 +58,7 @@ const createAdmin = async () => {
   await ensureUsuarioTable(pool);
 
   const existing = await pool.request()
-    .input('Email', sql.NVarChar(150), ADMIN_EMAIL)
+    .input('Email', sql.NVarChar(150), OWNER_EMAIL)
     .query(`
       SELECT IDUsuario, Email
       FROM dbo.Usuario
@@ -61,25 +66,37 @@ const createAdmin = async () => {
     `);
 
   if (existing.recordset.length > 0) {
-    console.log(`El usuario admin ya existe: ${ADMIN_EMAIL}`);
+    await pool.request()
+      .input('Email', sql.NVarChar(150), OWNER_EMAIL)
+      .input('Nombre', sql.NVarChar(100), OWNER_NAME)
+      .query(`
+        UPDATE dbo.Usuario
+        SET IDEmpresa = 1,
+            Nombre = @Nombre,
+            Rol = 'OWNER',
+            Activo = 1
+        WHERE Email = @Email
+      `);
+
+    console.log(`El usuario OWNER ya existe y fue normalizado: ${OWNER_EMAIL}`);
     return;
   }
 
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
+  const passwordHash = await bcrypt.hash(OWNER_PASSWORD, 12);
 
   const result = await pool.request()
-    .input('Nombre', sql.NVarChar(100), ADMIN_NAME)
-    .input('Email', sql.NVarChar(150), ADMIN_EMAIL)
+    .input('Nombre', sql.NVarChar(100), OWNER_NAME)
+    .input('Email', sql.NVarChar(150), OWNER_EMAIL)
     .input('PasswordHash', sql.NVarChar(255), passwordHash)
-    .input('Rol', sql.NVarChar(50), 'admin')
+    .input('Rol', sql.NVarChar(50), 'OWNER')
     .query(`
       INSERT INTO dbo.Usuario (IDEmpresa, Nombre, Email, PasswordHash, Rol, Activo)
       OUTPUT INSERTED.IDUsuario, INSERTED.IDEmpresa, INSERTED.Nombre, INSERTED.Email, INSERTED.Rol, INSERTED.Activo
       VALUES (1, @Nombre, @Email, @PasswordHash, @Rol, 1)
     `);
 
-  console.log('Usuario admin creado:', result.recordset[0]);
-  console.log('Contrasena temporal:', ADMIN_PASSWORD);
+  console.log('Usuario OWNER creado:', result.recordset[0]);
+  console.log('Contrasena temporal:', OWNER_PASSWORD);
 };
 
 createAdmin()

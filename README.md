@@ -2,7 +2,7 @@
 
 Backend base en Node.js, Express y SQL Server para una aplicacion web de contabilidad de talleres de neumaticos.
 
-No usa ORM. Los repositories llaman unicamente a procedimientos almacenados.
+No usa ORM. Los repositories usan `mssql` parametrizado; actualmente hay mezcla de procedimientos almacenados reales y queries directas parametrizadas.
 
 ## Stack
 
@@ -16,6 +16,8 @@ No usa ORM. Los repositories llaman unicamente a procedimientos almacenados.
 - Procedimientos almacenados
 - Arquitectura modular por dominio
 - CORS configurable para frontend React
+- JWT
+- Multiempresa por `IDEmpresa`
 
 ## Estructura
 
@@ -27,6 +29,7 @@ src/
 |-- middlewares/
 |   `-- errorHandler.js
 |-- modules/
+|   |-- auth/
 |   |-- common/
 |   |-- dashboard/
 |   |-- ingresos/
@@ -69,6 +72,8 @@ DB_DATABASE=contabilidad_neumaticos
 DB_PORT=1433
 DB_TRUST_SERVER_CERTIFICATE=true
 DB_ENCRYPT=false
+JWT_SECRET=una_clave_larga_segura
+JWT_EXPIRES_IN=8h
 ```
 
 En produccion configura siempre `CORS_ORIGIN`; si no se define, no queda abierto por defecto.
@@ -91,16 +96,80 @@ Health check:
 GET http://localhost:3000/api/health
 ```
 
-## Procedimientos almacenados esperados
+## Autenticacion y multiempresa
 
-- `sp_dashboard_resumen`
-- `sp_ingresos_listar`
-- `sp_ingresos_crear`
-- `sp_gastos_listar`
-- `sp_gastos_crear`
-- `sp_talleres_listar`
+La aplicacion usa login con JWT. Todas las rutas financieras estan protegidas y el aislamiento de datos se hace por `IDEmpresa`, nunca por `IDUsuario`.
 
-Revisa los archivos `*.repository.js` si tus procedimientos usan nombres de parametros distintos. Los datos llegan ya validados y normalizados desde los services/schemas para ser compatibles con:
+Roles previstos:
+
+- `SUPER_ADMIN`: reservado para administracion global futura del SaaS.
+- `OWNER`: cliente propietario de una empresa.
+- `EMPLOYEE`: rol futuro para empleados.
+
+Usuario inicial del cliente:
+
+```txt
+Email: neumaticosidriss@email.com
+Password temporal: Cambiar123!
+Rol: OWNER
+IDEmpresa: 1
+Empresa: Neumaticos Idriss
+Slug: neumaticos-idriss
+```
+
+Login:
+
+```http
+POST http://localhost:3000/api/auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "neumaticosidriss@email.com",
+  "password": "Cambiar123!"
+}
+```
+
+El JWT incluye:
+
+```json
+{
+  "id": 1,
+  "empresaId": 1,
+  "email": "neumaticosidriss@email.com",
+  "rol": "OWNER"
+}
+```
+
+Para inicializar/migrar tenant:
+
+```bash
+npm run migrate:tenant
+npm run create:owner
+```
+
+El frontend no debe enviar `IDEmpresa`, `empresaId` ni `IDUsuario`; el backend siempre usa `req.user.empresaId`.
+
+## Base de datos
+
+Tablas principales conocidas:
+
+- `dbo.Empresa`
+- `dbo.Usuario`
+- `dbo.Taller`
+- `dbo.Ingreso`
+- `dbo.Gasto`
+- `dbo.TipoIngreso`
+- `dbo.TipoGasto`
+
+Todos los datos privados deben filtrar por:
+
+```sql
+WHERE IDEmpresa = @IDEmpresa
+```
+
+Los datos llegan ya validados y normalizados desde los services/schemas para ser compatibles con:
 
 - `sql.Int`
 - `sql.Date`
