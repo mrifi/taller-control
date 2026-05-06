@@ -4,7 +4,19 @@ const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 
 export const login = async (email, password, rememberMe = false) => {
-  const { data } = await api.post('/auth/login', { email, password, rememberMe });
+  let response;
+
+  try {
+    response = await api.post('/auth/login', { email, password, rememberMe });
+  } catch (error) {
+    if (!isRememberMeCompatibilityError(error)) {
+      throw error;
+    }
+
+    response = await api.post('/auth/login', { email, password });
+  }
+
+  const { data } = response;
 
   if (data.token) {
     localStorage.setItem(TOKEN_KEY, data.token);
@@ -15,6 +27,14 @@ export const login = async (email, password, rememberMe = false) => {
   }
 
   return data;
+};
+
+const isRememberMeCompatibilityError = (error) => {
+  const errors = error?.response?.data?.errors || [];
+
+  return error?.response?.status === 400 && errors.some((item) => (
+    item.message || ''
+  ).includes('rememberMe'));
 };
 
 export const forgotPassword = async (email) => {
