@@ -1,24 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowUpRight,
   Banknote,
   BadgeEuro,
+  Bell,
   CalendarClock,
   CircleDollarSign,
   CreditCard,
   HandCoins,
   Landmark,
   ReceiptText,
+  Search,
+  ShieldCheck,
   Smartphone,
   TrendingDown,
   TrendingUp,
   Wallet,
   Wrench
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts';
 import DataTable from '../components/Dashboard/DataTable.jsx';
 import FilterBar from '../components/Dashboard/FilterBar.jsx';
 import MetricCard from '../components/Dashboard/MetricCard.jsx';
 import PaymentChart from '../components/Dashboard/PaymentChart.jsx';
+import { getUser } from '../services/authService.js';
 import { getDashboard } from '../services/dashboardService.js';
 import { getGastos } from '../services/gastosService.js';
 import { getIngresos } from '../services/ingresosService.js';
@@ -66,6 +82,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const hasSelectedTaller = Boolean(appliedFilters.tallerId);
+  const user = getUser();
 
   useEffect(() => {
     loadTalleres();
@@ -187,6 +204,9 @@ function Dashboard() {
     }
   ]), [summary]);
 
+  const mainMetrics = metrics.slice(0, 4);
+  const finalMetrics = metrics.slice(4);
+
   const secondaryMetrics = useMemo(() => ([
     { title: 'Ingresos en efectivo', value: formatCurrency(summary.ingresosEfectivo), icon: Banknote, tone: 'green' },
     { title: 'Ingresos con tarjeta', value: formatCurrency(summary.ingresosTarjeta), icon: CreditCard, tone: 'blue' },
@@ -224,6 +244,14 @@ function Dashboard() {
 
   const ingresosCategoriaData = getCategoryChartData(summary.ingresosPorCategoria);
   const gastosCategoriaData = getCategoryChartData(summary.gastosPorCategoria);
+  const selectedTaller = talleres.find((taller) => String(getTallerId(taller)) === String(filters.tallerId || appliedFilters.tallerId));
+  const greetingName = user?.nombre || selectedTaller ? user?.nombre || getTallerName(selectedTaller) : 'Taller Control';
+  const ingresosVsGastosData = [
+    { name: 'Ingresos', ingresos: Number(summary.facturacionTotal ?? summary.totalIngresos ?? 0), gastos: 0 },
+    { name: 'Gastos', ingresos: 0, gastos: Number(summary.totalGastos || 0) }
+  ];
+  const monthlyData = getMovementTrend(ingresos, gastos);
+  const pendingRows = getPendingRows(ingresos);
 
   const tyreProgress = Math.min(Number(summary.neumaticosVendidos || 0), 200);
   const tyrePercent = Math.round((tyreProgress / 200) * 100);
@@ -248,29 +276,49 @@ function Dashboard() {
   };
 
   return (
-    <div className="dashboard-page">
-      <FilterBar
-        filters={filters}
-        talleres={talleres}
-        loading={loading}
-        talleresLoading={talleresLoading}
-        talleresError={talleresError}
-        onChange={handleFilterChange}
-        onApply={handleApply}
-        onClear={handleClear}
-      />
+    <div className="dashboard-page dashboard-premium">
+      <section className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <p className="eyebrow">Resumen financiero</p>
+          <h2>Buenos dias, {greetingName}</h2>
+          <p>Aqui tienes el resumen financiero de tu taller.</p>
+        </div>
+
+        <div className="dashboard-hero-actions">
+          <div className="dashboard-search">
+            <Search size={17} />
+            <span>Buscar movimientos</span>
+          </div>
+          <button className="dashboard-icon-button" type="button" aria-label="Notificaciones">
+            <Bell size={18} />
+          </button>
+          {user ? (
+            <div className="dashboard-user-card">
+              <strong>{user.nombre}</strong>
+              <span>{user.rol}</span>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="dashboard-filter-card">
+        <FilterBar
+          filters={filters}
+          talleres={talleres}
+          loading={loading}
+          talleresLoading={talleresLoading}
+          talleresError={talleresError}
+          onChange={handleFilterChange}
+          onApply={handleApply}
+          onClear={handleClear}
+        />
+      </div>
 
       {error ? <div className="alert-error">{error}</div> : null}
       {!hasSelectedTaller ? <div className="info-panel">Selecciona un taller para ver el dashboard.</div> : null}
 
-      <section className="metric-grid primary-grid">
-        {metrics.map((metric) => (
-          <MetricCard key={metric.title} {...metric} />
-        ))}
-      </section>
-
-      <section className="metric-grid secondary-grid">
-        {secondaryMetrics.map((metric) => (
+      <section className="metric-grid dashboard-kpi-grid">
+        {mainMetrics.map((metric) => (
           <MetricCard key={metric.title} {...metric} />
         ))}
       </section>
@@ -279,10 +327,15 @@ function Dashboard() {
         <div className="loading-panel">Cargando datos financieros...</div>
       ) : hasSelectedTaller ? (
         <>
-          <section className="charts-grid">
+          <section className="dashboard-main-grid">
+            <FinancialBars title="Ingresos vs gastos" data={ingresosVsGastosData} />
+            <PaymentChart title="Metodos de ingreso" data={ingresosPorMetodo} />
+            <TrendChart title="Evolucion mensual" data={monthlyData} />
+          </section>
+
+          <section className="charts-grid dashboard-secondary-charts">
             <PaymentChart title="Cobrado real vs pendiente" data={cobrosData} />
             <PaymentChart title="Saldo real vs previsto" data={balanceData} />
-            <PaymentChart title="Ingresos por metodo de pago" data={ingresosPorMetodo} />
             <PaymentChart title="Gastos por metodo de pago" data={gastosPorMetodo} />
             <section className="chart-panel tyre-panel">
               <div className="panel-heading">
@@ -295,6 +348,18 @@ function Dashboard() {
                 <p>Objetivo visual de referencia: 200 unidades</p>
               </div>
             </section>
+          </section>
+
+          <section className="metric-grid dashboard-summary-grid">
+            {finalMetrics.map((metric) => (
+              <MetricCard key={metric.title} {...metric} />
+            ))}
+          </section>
+
+          <section className="metric-grid dashboard-payment-grid">
+            {secondaryMetrics.map((metric) => (
+              <MetricCard key={metric.title} {...metric} />
+            ))}
           </section>
 
           <section className="category-insights-grid">
@@ -317,10 +382,113 @@ function Dashboard() {
           <section className="tables-grid">
             <DataTable title="Ultimos ingresos" rows={ingresos} />
             <DataTable title="Ultimos gastos" rows={gastos} />
+            <OperationList title="Pendientes de cobro" rows={pendingRows} emptyText="No hay pendientes para este periodo." />
           </section>
         </>
       ) : null}
     </div>
+  );
+}
+
+function FinancialBars({ title, data }) {
+  const hasData = data.some((item) => Number(item.ingresos || item.gastos) > 0);
+
+  return (
+    <section className="chart-panel featured-chart-panel">
+      <div className="panel-heading premium-panel-heading">
+        <div>
+          <h2>{title}</h2>
+          <span>Comparativa del periodo seleccionado</span>
+        </div>
+        <ShieldCheck size={18} />
+      </div>
+      <div className="chart-area">
+        {!hasData ? (
+          <div className="empty-chart">Sin datos para mostrar</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="rgba(148, 163, 184, 0.22)" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={58} />
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+              <Bar dataKey="ingresos" radius={[8, 8, 0, 0]} fill="#0ea5e9" />
+              <Bar dataKey="gastos" radius={[8, 8, 0, 0]} fill="#ef4444" />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function TrendChart({ title, data }) {
+  const hasData = data.some((item) => Number(item.ingresos || item.gastos) > 0);
+
+  return (
+    <section className="chart-panel">
+      <div className="panel-heading premium-panel-heading">
+        <div>
+          <h2>{title}</h2>
+          <span>Lectura rapida por fechas recientes</span>
+        </div>
+        <ArrowUpRight size={18} />
+      </div>
+      <div className="chart-area">
+        {!hasData ? (
+          <div className="empty-chart">Sin datos para mostrar</div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data}>
+              <defs>
+                <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.22} />
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="rgba(148, 163, 184, 0.22)" />
+              <XAxis dataKey="name" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={48} />
+              <Tooltip formatter={(value) => formatCurrency(value)} />
+              <Area type="monotone" dataKey="ingresos" stroke="#0ea5e9" fill="url(#incomeGradient)" strokeWidth={3} />
+              <Area type="monotone" dataKey="gastos" stroke="#ef4444" fill="url(#expenseGradient)" strokeWidth={3} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function OperationList({ title, rows, emptyText }) {
+  return (
+    <section className="table-panel operation-list-panel">
+      <div className="panel-heading">
+        <h2>{title}</h2>
+      </div>
+      <div className="operation-list">
+        {rows.length === 0 ? (
+          <div className="empty-chart compact-empty">{emptyText}</div>
+        ) : rows.slice(0, 6).map((row, index) => (
+          <article className="operation-row" key={row.IDIngreso || row.id || `${title}-${index}`}>
+            <div>
+              <strong>{row.Cliente || row.cliente || 'Cliente pendiente'}</strong>
+              <span>{row.Descripcion || row.descripcion || 'Ingreso pendiente'}</span>
+            </div>
+            <div className="operation-amount">
+              <strong>{formatCurrency(row.Monto || row.monto || 0)}</strong>
+              <span className={`status-badge ${isOverdue(row) ? 'vencido' : 'pendiente'}`}>
+                {isOverdue(row) ? 'Vencido' : 'Pendiente'}
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -358,6 +526,80 @@ function CategoryInsight({ title, chartTitle, rows = [], chartData = [], totalLa
         </div>
       </section>
     </section>
+  );
+}
+
+function getMovementTrend(ingresos = [], gastos = []) {
+  const groups = new Map();
+
+  ingresos.forEach((row) => {
+    const key = getShortDate(row.Fecha || row.fecha || row.createdAt);
+    const current = groups.get(key) || { name: key, ingresos: 0, gastos: 0 };
+    current.ingresos += Number(row.Monto || row.monto || row.Total || row.total || 0);
+    groups.set(key, current);
+  });
+
+  gastos.forEach((row) => {
+    const key = getShortDate(row.Fecha || row.fecha || row.createdAt);
+    const current = groups.get(key) || { name: key, ingresos: 0, gastos: 0 };
+    current.gastos += Number(row.Monto || row.monto || row.Total || row.total || 0);
+    groups.set(key, current);
+  });
+
+  return Array.from(groups.values()).slice(0, 8).reverse();
+}
+
+function getShortDate(value) {
+  if (!value) {
+    return 'Sin fecha';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Sin fecha';
+  }
+
+  return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' }).format(date);
+}
+
+function getPendingRows(rows = []) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => (
+    String(row.EstadoPago || row.estadoPago || '').toUpperCase() === 'PENDIENTE'
+  ));
+}
+
+function isOverdue(row) {
+  const value = row.FechaPagoPrevista || row.fechaPagoPrevista;
+
+  if (!value) {
+    return false;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return date < new Date();
+}
+
+function getTallerId(taller) {
+  return taller?.IDTaller ?? taller?.idTaller ?? taller?.tallerId ?? taller?.id ?? taller?.Id;
+}
+
+function getTallerName(taller) {
+  const id = getTallerId(taller);
+
+  return (
+    taller?.Denominacion ||
+    taller?.denominacion ||
+    taller?.Nombre ||
+    taller?.nombre ||
+    taller?.nombreTaller ||
+    taller?.descripcion ||
+    `Taller ${id}`
   );
 }
 
