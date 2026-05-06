@@ -12,6 +12,7 @@ const ingresosRoutes = require('./modules/ingresos/ingresos.routes');
 const gastosRoutes = require('./modules/gastos/gastos.routes');
 const reportesRoutes = require('./modules/reportes/reportes.routes');
 const talleresRoutes = require('./modules/talleres/talleres.routes');
+const profileRoutes = require('./modules/profile/profile.routes');
 const errorHandler = require('./middlewares/errorHandler');
 const logger = require('./config/logger');
 const AppError = require('./utils/AppError');
@@ -59,6 +60,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', verifyToken, profileRoutes);
 app.use('/api/dashboard', verifyToken, dashboardRoutes);
 app.use('/api/ingresos', verifyToken, ingresosRoutes);
 app.use('/api/gastos', verifyToken, gastosRoutes);

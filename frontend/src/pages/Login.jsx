@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, Lock } from 'lucide-react';
 import { isAuthenticated, login } from '../services/authService.js';
 
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '', rememberMe: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,7 +26,7 @@ function Login() {
     setLoading(true);
 
     try {
-      await login(form.email, form.password);
+      await login(form.email, form.password, form.rememberMe);
       navigate(redirectTo, { replace: true });
     } catch (requestError) {
       setError(getErrorMessage(requestError));
@@ -78,6 +78,21 @@ function Login() {
               required
             />
           </label>
+
+          <div className="login-options">
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.rememberMe}
+                onChange={(event) => handleChange('rememberMe', event.target.checked)}
+              />
+              <span>Recordarme</span>
+            </label>
+
+            <Link className="auth-link" to="/forgot-password">
+              He olvidado mi contrasena
+            </Link>
+          </div>
 
           <button className="primary-button login-submit" type="submit" disabled={loading}>
             <Lock size={17} />

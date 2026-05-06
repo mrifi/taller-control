@@ -74,6 +74,7 @@ DB_TRUST_SERVER_CERTIFICATE=true
 DB_ENCRYPT=false
 JWT_SECRET=una_clave_larga_segura
 JWT_EXPIRES_IN=8h
+JWT_REMEMBER_EXPIRES_IN=30d
 ```
 
 En produccion configura siempre `CORS_ORIGIN`; si no se define, no queda abierto por defecto.
@@ -131,6 +132,16 @@ Content-Type: application/json
 }
 ```
 
+Login con sesion recordada:
+
+```json
+{
+  "email": "neumaticosidriss@email.com",
+  "password": "Cambiar123!",
+  "rememberMe": true
+}
+```
+
 El JWT incluye:
 
 ```json
@@ -147,9 +158,20 @@ Para inicializar/migrar tenant:
 ```bash
 npm run migrate:tenant
 npm run create:owner
+npm run migrate:password-recovery
 ```
 
 El frontend no debe enviar `IDEmpresa`, `empresaId` ni `IDUsuario`; el backend siempre usa `req.user.empresaId`.
+
+Perfil y recuperacion de contrasena:
+
+- `GET /api/profile`
+- `PUT /api/profile`
+- `PUT /api/profile/password`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+La recuperacion guarda el token hasheado en `dbo.Usuario` y de momento muestra el enlace de reset en logs para pruebas. No hay proveedor de email integrado todavia.
 
 ## Base de datos
 

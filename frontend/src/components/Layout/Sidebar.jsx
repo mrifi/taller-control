@@ -5,6 +5,7 @@ import {
   ClipboardList,
   FileText,
   Gauge,
+  UserCircle,
   Warehouse
 } from 'lucide-react';
 
@@ -13,7 +14,8 @@ const menuItems = [
   { label: 'Ingresos', icon: CircleDollarSign, to: '/ingresos' },
   { label: 'Gastos', icon: ClipboardList, to: '/gastos' },
   { label: 'Talleres', icon: Warehouse, to: '/talleres' },
-  { label: 'Reportes', icon: FileText, to: '/reportes' }
+  { label: 'Reportes', icon: FileText, to: '/reportes' },
+  { label: 'Perfil', icon: UserCircle, to: '/profile' }
 ];
 
 function Sidebar() {

@@ -281,6 +281,45 @@ button {
   margin-top: 4px;
 }
 
+.login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.checkbox-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.checkbox-row input {
+  width: 16px;
+  height: 16px;
+}
+
+.checkbox-row span {
+  color: #64748b !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+}
+
+.auth-link {
+  color: #0ea5e9;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  color: #0284c7;
+}
+
 .dashboard-page {
   display: grid;
   gap: 22px;
@@ -1107,6 +1146,82 @@ td {
   page-break-inside: avoid;
 }
 
+.profile-page {
+  gap: 18px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 18px;
+}
+
+.profile-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(15, 23, 42, 0.06);
+}
+
+.profile-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.profile-card-heading svg {
+  flex: 0 0 auto;
+  color: #0ea5e9;
+}
+
+.profile-card-heading h3 {
+  margin: 0 0 5px;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.profile-card-heading p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.profile-card label {
+  display: grid;
+  gap: 7px;
+}
+
+.profile-card label span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.profile-card input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #d7e1ec;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.profile-divider {
+  height: 1px;
+  background: #e3ebf3;
+}
+
+.profile-action {
+  justify-self: start;
+}
+
 @media (max-width: 1180px) {
   .primary-grid,
   .secondary-grid {
@@ -1191,6 +1306,7 @@ td {
 
   .charts-grid,
   .category-insights-grid,
+  .profile-grid,
   .workshop-comparison-grid,
   .tables-grid {
     grid-template-columns: 1fr;
@@ -1254,6 +1370,11 @@ td {
 
   .workshop-metric strong {
     text-align: left;
+  }
+
+  .login-options {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .primary-button,

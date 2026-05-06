@@ -3,8 +3,8 @@ import api from './api.js';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 
-export const login = async (email, password) => {
-  const { data } = await api.post('/auth/login', { email, password });
+export const login = async (email, password, rememberMe = false) => {
+  const { data } = await api.post('/auth/login', { email, password, rememberMe });
 
   if (data.token) {
     localStorage.setItem(TOKEN_KEY, data.token);
@@ -14,6 +14,16 @@ export const login = async (email, password) => {
     localStorage.setItem(USER_KEY, JSON.stringify(data.user));
   }
 
+  return data;
+};
+
+export const forgotPassword = async (email) => {
+  const { data } = await api.post('/auth/forgot-password', { email });
+  return data;
+};
+
+export const resetPassword = async ({ email, token, newPassword }) => {
+  const { data } = await api.post('/auth/reset-password', { email, token, newPassword });
   return data;
 };
 
@@ -38,6 +48,12 @@ export const getUser = () => {
   } catch {
     logout();
     return null;
+  }
+};
+
+export const setUser = (user) => {
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify({ ...getUser(), ...user }));
   }
 };
 
